@@ -1,6 +1,4 @@
 package com.flipwars.ui;
-
-import com.flipwars.constants.GameConstants;
 import javax.swing.*;
 import java.awt.*;
 
