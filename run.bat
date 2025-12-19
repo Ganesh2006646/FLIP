@@ -22,7 +22,7 @@ if not exist bin mkdir bin
 echo Compiling...
 :: -d bin: Puts the class files into the 'bin' folder
 :: -sourcepath src/main/java: Tells compiler where to look for other classes
-javac -d bin -sourcepath src/main/java src/main/java/com/flipwars/Main.java
+javac -d bin -sourcepath src/main/java src/main/java/com/flipwars/*.java
 
 if %errorlevel% neq 0 (
     echo.
