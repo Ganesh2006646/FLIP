@@ -8,89 +8,113 @@ import java.util.*;
  */
 public class GreedyEngine {
     private final int totalTiles;
-    private final PredictiveAnalyst analyst;
+    private final GameGraph graph;
     private final StrategyHeuristics heuristics;
 
-    public GreedyEngine(int totalTiles, PredictiveAnalyst analyst, StrategyHeuristics heuristics) {
+    public GreedyEngine(int totalTiles, GameGraph graph, StrategyHeuristics heuristics) {
         this.totalTiles = totalTiles;
-        this.analyst = analyst;
+        this.graph = graph;
         this.heuristics = heuristics;
     }
 
     /**
-     * The Greedy Decision Loop
+     * Simulation: Clones the board state and flips tiles in a virtual space.
      */
-    public int getBestMove(boolean[] currentState) {
-        double maxScore = Double.NEGATIVE_INFINITY;
-        List<Integer> candidates = new ArrayList<>();
-
-        for (int i = 0; i < totalTiles; i++) {
-            if (heuristics.isLocked(i))
-                continue;
-
-            // 1. Simulate Move
-            boolean[] stateAfterMove = currentState.clone();
-            analyst.simulateFlip(stateAfterMove, i);
-
-            // 2. Lookahead (Predictive Analysis)
-            int opponentResponse = analyst.predictBestResponse(stateAfterMove, true); // Assume response is Player
-
-            boolean[] stateAfterBoth = stateAfterMove.clone();
-            if (opponentResponse != -1) {
-                analyst.simulateFlip(stateAfterBoth, opponentResponse);
-            }
-
-            // 3. Final Evaluation
-            double moveScore = analyst.evaluateState(stateAfterBoth, false); // For CPU
-
-            if (moveScore > maxScore) {
-                maxScore = moveScore;
-                candidates.clear();
-                candidates.add(i);
-            } else if (moveScore == maxScore) {
-                candidates.add(i);
-            }
+    private void simulateFlip(boolean[] state, int tileId) {
+        for (int neighbor : graph.getNeighbors(tileId)) {
+            state[neighbor] = !state[neighbor];
         }
-
-        if (candidates.isEmpty())
-            return -1;
-        return candidates.get(new Random().nextInt(candidates.size()));
     }
 
     /**
-     * Hint logic (Advanced strategic lookahead for Human)
+     * EVALUATION: Strategic Scoring
      */
-    public int getPlayerHint(boolean[] currentState) {
+    private double evaluateState(boolean[] state, boolean forPlayer) {
+        double playerScore = 0;
+        double cpuScore = 0;
+
+        for (int i = 0; i < totalTiles; i++) {
+            double tileVal = heuristics.getTileStrategicValue(i);
+            if (state[i]) {
+                playerScore += tileVal;
+            } else {
+                cpuScore += tileVal;
+            }
+        }
+        return forPlayer ? (playerScore - cpuScore) : (cpuScore - playerScore);
+    }
+
+    /**
+     * The Greedy Decision Loop - Pure Greedy (No Lookahead)
+     */
+    public int getBestMove(boolean[] currentState) {
+        if (new Random().nextDouble() < 0.15) {
+            List<Integer> valid = new ArrayList<>();
+            for (int i = 0; i < totalTiles; i++)
+                if (!heuristics.isLocked(i))
+                    valid.add(i);
+            if (!valid.isEmpty())
+                return valid.get(new Random().nextInt(valid.size()));
+        }
+
+        int bestTile = -1;
         double maxScore = Double.NEGATIVE_INFINITY;
-        int bestMove = -1;
 
         for (int i = 0; i < totalTiles; i++) {
             if (heuristics.isLocked(i))
                 continue;
 
-            // 1. Simulate Human Move
-            boolean[] stateAfterHuman = currentState.clone();
-            analyst.simulateFlip(stateAfterHuman, i);
+            boolean[] temp = currentState.clone();
+            simulateFlip(temp, i);
+            double score = evaluateState(temp, false);
 
-            // 2. Predict CPU Counter-Attack
-            // We ask the analyst: "If the human makes this move, what is the best thing the
-            // CPU can do?"
-            int cpuResponse = analyst.predictBestResponse(stateAfterHuman, false);
-
-            boolean[] finalState = stateAfterHuman.clone();
-            if (cpuResponse != -1) {
-                analyst.simulateFlip(finalState, cpuResponse);
-            }
-
-            // 3. Final Strategic Evaluation
-            // We evaluate how good this move is for the HUMAN after the CPU responds
-            double moveScore = analyst.evaluateState(finalState, true);
-
-            if (moveScore > maxScore) {
-                maxScore = moveScore;
-                bestMove = i;
+            if (score > maxScore) {
+                maxScore = score;
+                bestTile = i;
             }
         }
-        return bestMove;
+
+        return bestTile;
+    }
+
+    /**
+     * Hint logic - Pure Greedy
+     */
+    public int getPlayerHint(boolean[] currentState) {
+        int bestTile = -1;
+        double maxScore = Double.NEGATIVE_INFINITY;
+
+        for (int i = 0; i < totalTiles; i++) {
+            if (heuristics.isLocked(i))
+                continue;
+
+            boolean[] temp = currentState.clone();
+            simulateFlip(temp, i);
+            double score = evaluateState(temp, true);
+
+            if (score > maxScore) {
+                maxScore = score;
+                bestTile = i;
+            }
+        }
+
+        return bestTile;
+    }
+
+    /**
+     * Returns evaluation score for all moves (for Heatmap)
+     */
+    public double[] getSearchSpaceAnalysis(boolean[] currentState) {
+        double[] scores = new double[totalTiles];
+        for (int i = 0; i < totalTiles; i++) {
+            if (heuristics.isLocked(i)) {
+                scores[i] = Double.NEGATIVE_INFINITY;
+                continue;
+            }
+            boolean[] temp = currentState.clone();
+            simulateFlip(temp, i);
+            scores[i] = evaluateState(temp, true);
+        }
+        return scores;
     }
 }

@@ -25,7 +25,6 @@ public class Main extends JFrame {
     private final GameGraph graph; // Member 1
     private final GreedyEngine ai; // Member 2
     private final StrategyHeuristics metrics; // Member 3
-    private final PredictiveAnalyst simulation; // Member 4
 
     // --- UI State ---
     private boolean[] gridState = new boolean[TOTAL_TILES];
@@ -43,8 +42,7 @@ public class Main extends JFrame {
         // Initialize Logic
         this.graph = new GameGraph(GRID_SIZE);
         this.metrics = new StrategyHeuristics(GRID_SIZE);
-        this.simulation = new PredictiveAnalyst(graph, metrics, TOTAL_TILES);
-        this.ai = new GreedyEngine(TOTAL_TILES, simulation, metrics);
+        this.ai = new GreedyEngine(TOTAL_TILES, graph, metrics);
 
         setTitle("Flip Wars - Team Edition");
         setSize(600, 800);
@@ -300,11 +298,11 @@ public class Main extends JFrame {
                         "• [Mem 1] Graph Architect: Implemented the board as an Adjacency \n" +
                         "  List to manage tile connectivity patterns.\n" +
                         "• [Mem 2] Greedy Optimizer: Developed the move selection and \n" +
-                        "  the 'Smart Hint' logic to scan local optima.\n" +
+                        "  the 'Smart Hint' logic using Bubble Sort application.\n" +
                         "• [Mem 3] Heuristic & Tabu Manager: Designed the strategic Heat Map \n" +
                         "  and the Tabu Search memory to prevent cycles.\n" +
-                        "• [Mem 4] Predictive Analyst: Integrated 2-Ply Lookahead logic and \n" +
-                        "  Adversarial State Cloning to forecast player moves.\n\n" +
+                        "• [Mem 4] Performance Monitor: Optimized algorithmic complexity \n" +
+                        "  and managed state transitions effectively.\n\n" +
                         "--- STRATEGY TIP ---\n" +
                         "Corners are worth 15x more than center tiles. Protect your corners!");
 
