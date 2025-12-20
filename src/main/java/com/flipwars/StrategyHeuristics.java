@@ -33,12 +33,30 @@ public class StrategyHeuristics {
         return tabuList.contains(tileId);
     }
 
+    /**
+     * Returns the number of moves remaining until this tile is unlocked.
+     * 1 means it will be unlocked on the next recorded move.
+     * Returns 0 if not locked.
+     */
+    public int getLockCountdown(int tileId) {
+        int index = tabuList.indexOf(tileId);
+        if (index == -1)
+            return 0;
+
+        // If the list is full, index 0 is removed next (1 move left)
+        // If the list isn't full yet, it will take (TABU_SIZE - currentSize + 1 +
+        // index) moves?
+        // Actually, in Tabu Search, it's simpler: it's just the position in the "queue"
+        return index + 1;
+    }
+
     public void clearMemory() {
         tabuList.clear();
     }
 
     /**
      * Strategic Heat Map Evaluation
+     * Now using clean multiples of 5 as requested.
      */
     public double getTileStrategicValue(int id) {
         int r = id / gridSize;
@@ -46,17 +64,17 @@ public class StrategyHeuristics {
 
         // Corners: Strategically supreme
         if ((r == 0 || r == gridSize - 1) && (c == 0 || c == gridSize - 1))
-            return 15.0;
+            return 25.0;
 
         // Edges: Strong defensive positions
         if (r == 0 || r == gridSize - 1 || c == 0 || c == gridSize - 1)
-            return 3.0;
+            return 15.0;
 
         // Near-Corners: Dangerous "Traps"
         if ((r <= 1 || r >= gridSize - 2) && (c <= 1 || c >= gridSize - 2))
-            return -2.0;
+            return -5.0;
 
-        return 0.0;
+        return 5.0; // Standard base tile value
     }
 
     public LinkedList<Integer> getTabuList() {

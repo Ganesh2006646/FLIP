@@ -58,24 +58,39 @@ public class GreedyEngine {
     }
 
     /**
-     * Hint logic (Simplified greedy for Player)
+     * Hint logic (Advanced strategic lookahead for Human)
      */
     public int getPlayerHint(boolean[] currentState) {
-        int bestId = -1;
-        double bestVal = Double.NEGATIVE_INFINITY;
+        double maxScore = Double.NEGATIVE_INFINITY;
+        int bestMove = -1;
 
         for (int i = 0; i < totalTiles; i++) {
             if (heuristics.isLocked(i))
                 continue;
 
-            boolean[] temp = currentState.clone();
-            analyst.simulateFlip(temp, i);
-            double val = analyst.evaluateState(temp, true);
-            if (val > bestVal) {
-                bestVal = val;
-                bestId = i;
+            // 1. Simulate Human Move
+            boolean[] stateAfterHuman = currentState.clone();
+            analyst.simulateFlip(stateAfterHuman, i);
+
+            // 2. Predict CPU Counter-Attack
+            // We ask the analyst: "If the human makes this move, what is the best thing the
+            // CPU can do?"
+            int cpuResponse = analyst.predictBestResponse(stateAfterHuman, false);
+
+            boolean[] finalState = stateAfterHuman.clone();
+            if (cpuResponse != -1) {
+                analyst.simulateFlip(finalState, cpuResponse);
+            }
+
+            // 3. Final Strategic Evaluation
+            // We evaluate how good this move is for the HUMAN after the CPU responds
+            double moveScore = analyst.evaluateState(finalState, true);
+
+            if (moveScore > maxScore) {
+                maxScore = moveScore;
+                bestMove = i;
             }
         }
-        return bestId;
+        return bestMove;
     }
 }

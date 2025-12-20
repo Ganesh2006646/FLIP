@@ -33,7 +33,7 @@ public class PredictiveAnalyst {
         double cpuScore = 0;
 
         for (int i = 0; i < totalTiles; i++) {
-            double tileVal = 1.0 + heuristics.getTileStrategicValue(i);
+            double tileVal = heuristics.getTileStrategicValue(i);
             if (state[i]) {
                 playerScore += tileVal;
             } else {

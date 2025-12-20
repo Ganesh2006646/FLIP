@@ -144,22 +144,25 @@ public class Main extends JFrame {
     }
 
     private void checkGameStatus() {
-        int y = countColor(true);
-        int g = countColor(false);
+        int yCount = countTiles(true);
+        int gCount = countTiles(false);
+        double yScore = calculateWeightedScore(true);
+        double gScore = calculateWeightedScore(false);
         String msg = null;
 
-        if (y == TOTAL_TILES)
+        if (yCount == TOTAL_TILES)
             msg = "Victorious! Human wins!";
-        else if (g == TOTAL_TILES)
+        else if (gCount == TOTAL_TILES)
             msg = "Defeat! CPU wins!";
         else if (turnsPlayed >= MAX_TURNS) {
-            msg = (y > g) ? "Time's up! You win!" : (g > y) ? "Time's up! CPU wins!" : "It's a draw!";
+            msg = (yScore > gScore) ? "Time's up! You win by Strategic Points!"
+                    : (gScore > yScore) ? "Time's up! CPU wins by Strategic Points!" : "It's a draw!";
         }
 
         if (msg != null) {
             isGameOver = true;
             statusLabel.setText(msg);
-            celebrate(y > g);
+            celebrate(yScore > gScore);
 
             int choice = JOptionPane.showConfirmDialog(this, msg + "\nPlay again?", "Game Over",
                     JOptionPane.YES_NO_OPTION);
@@ -325,9 +328,10 @@ public class Main extends JFrame {
                     : (gridState[i] ? StrategyHeuristics.COLOR_PLAYER : StrategyHeuristics.COLOR_CPU));
 
             if (isLocked) {
-                tileButtons[i].setText("X");
+                int countdown = metrics.getLockCountdown(i);
+                tileButtons[i].setText("L" + countdown);
                 tileButtons[i].setForeground(Color.RED);
-                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 20));
+                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 18));
             } else {
                 double weight = metrics.getTileStrategicValue(i);
                 if (weight != 0) {
@@ -343,16 +347,28 @@ public class Main extends JFrame {
     }
 
     private void updateScoreDisplay() {
-        scoreLabel.setText("Yellow: " + countColor(true) + " | Grey: " + countColor(false));
+        double yScore = calculateWeightedScore(true);
+        double gScore = calculateWeightedScore(false);
+        scoreLabel.setText(String.format("Yellow: %.1f | Grey: %.1f", yScore, gScore));
         turnLabel.setText("Turn: " + turnsPlayed + " / " + MAX_TURNS);
     }
 
-    private int countColor(boolean isYellow) {
+    private int countTiles(boolean isYellow) {
         int c = 0;
         for (boolean s : gridState)
             if (s == isYellow)
                 c++;
         return c;
+    }
+
+    private double calculateWeightedScore(boolean isYellow) {
+        double total = 0;
+        for (int i = 0; i < TOTAL_TILES; i++) {
+            if (gridState[i] == isYellow) {
+                total += metrics.getTileStrategicValue(i);
+            }
+        }
+        return total;
     }
 
     private void celebrate(boolean human) {
