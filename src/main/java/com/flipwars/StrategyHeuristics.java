@@ -8,7 +8,7 @@ import java.util.LinkedList;
  * Concept: Meta-Heuristics (Tabu Search) & Strategic Weighting.
  */
 public class StrategyHeuristics {
-    private static final int TABU_SIZE = 8;
+    private final int tabuSize;
     private final LinkedList<Integer> tabuList = new LinkedList<>();
     private final int gridSize;
 
@@ -19,12 +19,14 @@ public class StrategyHeuristics {
 
     public StrategyHeuristics(int gridSize) {
         this.gridSize = gridSize;
+        // Dynamic Lock Duration: roughly 25% of the grid, minimum 2
+        this.tabuSize = Math.max(2, (gridSize * gridSize) / 4);
     }
-
+ 
     public void recordMove(int tileId) {
         tabuList.remove(Integer.valueOf(tileId));
         tabuList.add(tileId);
-        if (tabuList.size() > TABU_SIZE) {
+        if (tabuList.size() > tabuSize) {
             tabuList.removeFirst();
         }
     }
@@ -77,7 +79,4 @@ public class StrategyHeuristics {
         return 5.0; // Standard base tile value
     }
 
-    public LinkedList<Integer> getTabuList() {
-        return tabuList;
-    }
 }

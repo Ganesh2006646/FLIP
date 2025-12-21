@@ -11,9 +11,9 @@ import java.util.*;
 public class Main extends JFrame {
 
     // --- Configuration ---
-    private static final int GRID_SIZE = 6;
-    private static final int TOTAL_TILES = 36;
-    private static final int MAX_TURNS = 30;
+    private int gridSize = 4;
+    private int totalTiles = 16;
+    private int maxTurns = 25;
 
     // --- Colors ---
     private static final Color COLOR_BG = new Color(44, 62, 80);
@@ -22,39 +22,50 @@ public class Main extends JFrame {
     private static final Color COLOR_CPU_MOVE = new Color(231, 76, 60);
 
     // --- Logic Components (The Team's Work) ---
-    private final GameGraph graph; // Member 1
-    private final GreedyEngine ai; // Member 2
-    private final StrategyHeuristics metrics; // Member 3
+    private GameGraph graph;
+    private GreedyEngine ai;
+    private StrategyHeuristics metrics;
 
     // --- UI State ---
-    private boolean[] gridState = new boolean[TOTAL_TILES];
+    private boolean[] gridState;
     private boolean isPlayerTurn = true;
     private boolean inputBlocked = false;
     private boolean isGameOver = false;
+    private boolean isAutoMode = false;
     private int turnsPlayed = 0;
 
     private CardLayout cardLayout = new CardLayout();
     private JPanel mainPanel = new JPanel(cardLayout);
-    private JButton[] tileButtons = new JButton[TOTAL_TILES];
+    private JButton[] tileButtons;
     private JLabel statusLabel, scoreLabel, turnLabel;
+    private JPanel gamePanel; // Keep reference to game panel to replace it
 
     public Main() {
-        // Initialize Logic
-        this.graph = new GameGraph(GRID_SIZE);
-        this.metrics = new StrategyHeuristics(GRID_SIZE);
-        this.ai = new GreedyEngine(TOTAL_TILES, graph, metrics);
+        initializeLogic(4);
 
         setTitle("Flip Wars - Team Edition");
-        setSize(600, 800);
+        setSize(700, 900); // Increased size slightly to accommodate larger grids
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
         mainPanel.add(createMenuPanel(), "MENU");
-        mainPanel.add(createGamePanel(), "GAME");
+        // gamePanel will be created when starting the game or changing size
+        mainPanel.add(new JPanel(), "GAME");
         mainPanel.add(createInstructionsPanel(), "INSTRUCTIONS");
 
         add(mainPanel);
         cardLayout.show(mainPanel, "MENU");
+    }
+
+    private void initializeLogic(int size) {
+        this.gridSize = size;
+        this.totalTiles = size * size;
+        this.maxTurns = 25; // Fixed turns as requested
+        this.graph = new GameGraph(gridSize);
+        this.metrics = new StrategyHeuristics(gridSize);
+        this.ai = new GreedyEngine(totalTiles, graph, metrics);
+        this.gridState = new boolean[totalTiles];
+        this.tileButtons = new JButton[totalTiles];
     }
 
     private void startGame() {
@@ -64,12 +75,21 @@ public class Main extends JFrame {
         isGameOver = false;
         isPlayerTurn = true;
         inputBlocked = false;
+        isAutoMode = false;
 
         Random rand = new Random();
         int initialMoves = 4 + rand.nextInt(3);
         for (int i = 0; i < initialMoves; i++) {
-            performFlip(rand.nextInt(TOTAL_TILES));
+            performFlip(rand.nextInt(totalTiles));
         }
+
+        if (gamePanel != null) {
+            mainPanel.remove(gamePanel);
+        }
+        gamePanel = createGamePanel();
+        mainPanel.add(gamePanel, "GAME");
+        mainPanel.revalidate();
+        mainPanel.repaint();
 
         updateBoardUI();
         updateScoreDisplay();
@@ -104,6 +124,8 @@ public class Main extends JFrame {
         if (!isGameOver) {
             isPlayerTurn = false;
             playCPUTurn();
+        } else {
+            isAutoMode = false;
         }
     }
 
@@ -120,11 +142,10 @@ public class Main extends JFrame {
 
             int move = ai.getBestMove(gridState);
             if (move == -1)
-                move = new Random().nextInt(TOTAL_TILES);
+                move = new Random().nextInt(totalTiles);
 
             int finalMove = move;
             SwingUtilities.invokeLater(() -> {
-                tileButtons[finalMove].setBorder(BorderFactory.createLineBorder(COLOR_CPU_MOVE, 4));
                 performFlip(finalMove);
                 metrics.recordMove(finalMove);
                 turnsPlayed++;
@@ -136,9 +157,22 @@ public class Main extends JFrame {
                     isPlayerTurn = true;
                     inputBlocked = false;
                     statusLabel.setText("Your Turn");
+                    if (isAutoMode) {
+                        triggerAutoMove();
+                    }
                 }
             });
         }).start();
+    }
+
+    private void triggerAutoMove() {
+        if (!isPlayerTurn || isGameOver || inputBlocked)
+            return;
+
+        int move = ai.getPlayerHint(gridState);
+        if (move != -1) {
+            handlePlayerMove(move);
+        }
     }
 
     private void checkGameStatus() {
@@ -148,11 +182,11 @@ public class Main extends JFrame {
         double gScore = calculateWeightedScore(false);
         String msg = null;
 
-        if (yCount == TOTAL_TILES)
+        if (yCount == totalTiles)
             msg = "Victorious! Human wins!";
-        else if (gCount == TOTAL_TILES)
+        else if (gCount == totalTiles)
             msg = "Defeat! CPU wins!";
-        else if (turnsPlayed >= MAX_TURNS) {
+        else if (turnsPlayed >= maxTurns) {
             msg = (yScore > gScore) ? "Time's up! You win by Strategic Points!"
                     : (gScore > yScore) ? "Time's up! CPU wins by Strategic Points!" : "It's a draw!";
         }
@@ -166,8 +200,9 @@ public class Main extends JFrame {
                     JOptionPane.YES_NO_OPTION);
             if (choice == JOptionPane.YES_OPTION)
                 startGame();
-            else
+            else {
                 cardLayout.show(mainPanel, "MENU");
+            }
         }
     }
 
@@ -212,10 +247,27 @@ public class Main extends JFrame {
         footer.add(teamLabel);
         footer.add(dAA);
 
+        // Grid Size Selection
+        JPanel sizePanel = new JPanel();
+        sizePanel.setBackground(COLOR_BG);
+        JLabel sizeLabel = createLbl("Select Grid Size: ", 18, Color.WHITE);
+        Integer[] sizes = { 4, 5, 6 };
+        JComboBox<Integer> sizeCombo = new JComboBox<>(sizes);
+        sizeCombo.setSelectedItem(gridSize);
+        sizeCombo.setFont(new Font("Arial", Font.BOLD, 16));
+        sizeCombo.addActionListener(e -> {
+            int selected = (int) sizeCombo.getSelectedItem();
+            initializeLogic(selected);
+        });
+        sizePanel.add(sizeLabel);
+        sizePanel.add(sizeCombo);
+
         p.add(Box.createVerticalGlue());
         p.add(title);
         p.add(subTitle);
-        p.add(Box.createRigidArea(new Dimension(0, 60)));
+        p.add(Box.createRigidArea(new Dimension(0, 40)));
+        p.add(sizePanel);
+        p.add(Box.createRigidArea(new Dimension(0, 20)));
         p.add(btnStart);
         p.add(Box.createRigidArea(new Dimension(0, 20)));
         p.add(btnIns);
@@ -232,17 +284,17 @@ public class Main extends JFrame {
         JPanel top = new JPanel(new GridLayout(3, 1));
         top.setBackground(COLOR_BG);
         scoreLabel = createLbl("Yellow: 0 | Grey: 0", 24, Color.WHITE);
-        turnLabel = createLbl("Turn: 0 / 30", 18, COLOR_ACCENT);
+        turnLabel = createLbl("Turn: 0 / " + maxTurns, 18, COLOR_ACCENT);
         statusLabel = createLbl("Your Turn", 18, COLOR_HINT);
         top.add(scoreLabel);
         top.add(turnLabel);
         top.add(statusLabel);
         p.add(top, BorderLayout.NORTH);
 
-        JPanel grid = new JPanel(new GridLayout(GRID_SIZE, GRID_SIZE, 8, 8));
+        JPanel grid = new JPanel(new GridLayout(gridSize, gridSize, 8, 8));
         grid.setBackground(COLOR_BG);
         grid.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        for (int i = 0; i < TOTAL_TILES; i++) {
+        for (int i = 0; i < totalTiles; i++) {
             JButton b = new JButton();
             b.setFocusPainted(false);
             final int id = i;
@@ -260,9 +312,23 @@ public class Main extends JFrame {
             if (hint != -1)
                 tileButtons[hint].setBorder(BorderFactory.createLineBorder(COLOR_HINT, 4));
         });
+
+        JButton bs = createBtn("SOLVE");
+        bs.addActionListener(e -> {
+            if (isGameOver)
+                return;
+            isAutoMode = !isAutoMode;
+            bs.setText(isAutoMode ? "STOP" : "SOLVE");
+            bs.setBackground(isAutoMode ? Color.RED : COLOR_ACCENT);
+            if (isAutoMode && isPlayerTurn && !inputBlocked) {
+                triggerAutoMove();
+            }
+        });
+
         JButton bm = createBtn("Menu");
         bm.addActionListener(e -> cardLayout.show(mainPanel, "MENU"));
         bot.add(bh);
+        bot.add(bs);
         bot.add(bm);
         p.add(bot, BorderLayout.SOUTH);
         return p;
@@ -292,19 +358,20 @@ public class Main extends JFrame {
                         "1. Objective: Conquer the grid by turning all tiles YELLOW.\n" +
                         "2. Flip Logic: Clicking a tile flips its color and all 4 orthogonal \n" +
                         "   neighbors in a PLUS (+) formation.\n" +
-                        "3. Tabu Lock: Once a tile is used, it is 'LOCKED' (X) for 8 turns. \n" +
-                        "   Neither you nor the CPU can touch it during this time.\n\n" +
+                        "3. Tabu Lock: Once a tile is used, it is 'LOCKED'. You must WAIT \n" +
+                        "   until the countdown expires to reuse it.\n\n" +
                         "--- DAA ALGORITHMS (TEAM ROLES) ---\n" +
                         "• [Mem 1] Graph Architect: Implemented the board as an Adjacency \n" +
                         "  List to manage tile connectivity patterns.\n" +
                         "• [Mem 2] Greedy Optimizer: Developed the move selection and \n" +
-                        "  the 'Smart Hint' logic using Bubble Sort application.\n" +
+                        "  Smart Hint logic using Pure Greedy Local Search.\n" +
                         "• [Mem 3] Heuristic & Tabu Manager: Designed the strategic Heat Map \n" +
-                        "  and the Tabu Search memory to prevent cycles.\n" +
-                        "• [Mem 4] Performance Monitor: Optimized algorithmic complexity \n" +
-                        "  and managed state transitions effectively.\n\n" +
+                        "  and the Tabu Search memory to prevent loops.\n" +
+                        "• [Mem 4] State Monitor: Managed game transitions and efficiency \n" +
+                        "  monitoring for the strategic board state.\n\n" +
                         "--- STRATEGY TIP ---\n" +
-                        "Corners are worth 15x more than center tiles. Protect your corners!");
+                        "Corners are worth 25 points, edges 15. Standard tiles are 5. \n" +
+                        "Avoid 'Traps' which subtract 5 points!");
 
         JScrollPane scroll = new JScrollPane(t);
         scroll.setBorder(null);
@@ -320,17 +387,23 @@ public class Main extends JFrame {
 
     // --- Helpers ---
     private void updateBoardUI() {
-        for (int i = 0; i < TOTAL_TILES; i++) {
+        for (int i = 0; i < totalTiles; i++) {
             boolean isLocked = metrics.isLocked(i);
-            tileButtons[i].setBackground(isLocked ? new Color(20, 20, 20)
-                    : (gridState[i] ? StrategyHeuristics.COLOR_PLAYER : StrategyHeuristics.COLOR_CPU));
+            Color baseColor = (gridState[i] ? StrategyHeuristics.COLOR_PLAYER : StrategyHeuristics.COLOR_CPU);
 
             if (isLocked) {
+                // Dim the color when locked so owner is still visible but it looks
+                // "deactivated"
+                Color dimmed = new Color(baseColor.getRed() / 2, baseColor.getGreen() / 2, baseColor.getBlue() / 2);
+                tileButtons[i].setBackground(dimmed);
+
                 int countdown = metrics.getLockCountdown(i);
-                tileButtons[i].setText("L" + countdown);
+                tileButtons[i].setText("WAIT: " + countdown);
                 tileButtons[i].setForeground(Color.RED);
                 tileButtons[i].setFont(new Font("Arial", Font.BOLD, 18));
+                tileButtons[i].setBorder(BorderFactory.createLineBorder(Color.RED, 3));
             } else {
+                tileButtons[i].setBackground(baseColor);
                 double weight = metrics.getTileStrategicValue(i);
                 if (weight != 0) {
                     tileButtons[i].setText((weight > 0 ? "+" : "") + (int) weight);
@@ -339,8 +412,8 @@ public class Main extends JFrame {
                 } else {
                     tileButtons[i].setText("");
                 }
+                tileButtons[i].setBorder(BorderFactory.createLineBorder(Color.BLACK, 1));
             }
-            tileButtons[i].setBorder(BorderFactory.createLineBorder(Color.BLACK, 1));
         }
     }
 
@@ -348,7 +421,7 @@ public class Main extends JFrame {
         double yScore = calculateWeightedScore(true);
         double gScore = calculateWeightedScore(false);
         scoreLabel.setText(String.format("Yellow: %.1f | Grey: %.1f", yScore, gScore));
-        turnLabel.setText("Turn: " + turnsPlayed + " / " + MAX_TURNS);
+        turnLabel.setText("Turn: " + turnsPlayed + " / " + maxTurns);
     }
 
     private int countTiles(boolean isYellow) {
@@ -361,7 +434,7 @@ public class Main extends JFrame {
 
     private double calculateWeightedScore(boolean isYellow) {
         double total = 0;
-        for (int i = 0; i < TOTAL_TILES; i++) {
+        for (int i = 0; i < totalTiles; i++) {
             if (gridState[i] == isYellow) {
                 total += metrics.getTileStrategicValue(i);
             }
@@ -371,7 +444,7 @@ public class Main extends JFrame {
 
     private void celebrate(boolean human) {
         javax.swing.Timer t = new javax.swing.Timer(150, e -> {
-            for (int i = 0; i < TOTAL_TILES; i++) {
+            for (int i = 0; i < totalTiles; i++) {
                 tileButtons[i].setBackground(new Random().nextBoolean() ? Color.WHITE
                         : (human ? StrategyHeuristics.COLOR_PLAYER : StrategyHeuristics.COLOR_CPU));
             }

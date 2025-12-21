@@ -48,7 +48,7 @@ public class GreedyEngine {
      * The Greedy Decision Loop - Pure Greedy (No Lookahead)
      */
     public int getBestMove(boolean[] currentState) {
-        if (new Random().nextDouble() < 0.15) {
+        if (new Random().nextDouble() < 0.50) {
             List<Integer> valid = new ArrayList<>();
             for (int i = 0; i < totalTiles; i++)
                 if (!heuristics.isLocked(i))
@@ -101,20 +101,4 @@ public class GreedyEngine {
         return bestTile;
     }
 
-    /**
-     * Returns evaluation score for all moves (for Heatmap)
-     */
-    public double[] getSearchSpaceAnalysis(boolean[] currentState) {
-        double[] scores = new double[totalTiles];
-        for (int i = 0; i < totalTiles; i++) {
-            if (heuristics.isLocked(i)) {
-                scores[i] = Double.NEGATIVE_INFINITY;
-                continue;
-            }
-            boolean[] temp = currentState.clone();
-            simulateFlip(temp, i);
-            scores[i] = evaluateState(temp, true);
-        }
-        return scores;
-    }
 }
