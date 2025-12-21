@@ -3,14 +3,13 @@ package com.flipwars;
 import java.util.*;
 
 /**
- * MEMBER 1: GRAPH ARCHITECT
  * Concept: Graph Representation & Adjacency Lists.
  */
-public class GameGraph {
+public class Graph {
     private final int gridSize;
     private final Map<Integer, List<Integer>> adjacencyList = new HashMap<>();
 
-    public GameGraph(int gridSize) {
+    public Graph(int gridSize) {
         this.gridSize = gridSize;
         initializeGraph();
     }
