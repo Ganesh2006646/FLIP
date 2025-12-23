@@ -77,16 +77,7 @@ public class Engine {
     }
 
     public int getBestMove(boolean[] currentState) {
-        // 15% blunder factor - sometimes make a random move
-        if (new Random().nextDouble() < 0.15) {
-            List<Integer> valid = new ArrayList<>();
-            for (int i = 0; i < totalTiles; i++)
-                if (!rules.isLocked(i))
-                    valid.add(i);
-            if (!valid.isEmpty())
-                return valid.get(new Random().nextInt(valid.size()));
-        }
-
+        
         // Step 1: Iterate every tile and evaluate them
         List<int[]> tileScores = new ArrayList<>(); // [tileId, score*1000]
 
