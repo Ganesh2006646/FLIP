@@ -381,19 +381,22 @@ public class Main extends JFrame {
         for (int i = 0; i < totalTiles; i++) {
             boolean isLocked = rules.isLocked(i);
             Color baseColor = (gridState[i] ? Rules.COLOR_PLAYER : Rules.COLOR_CPU);
+            double weight = rules.getTileStrategicValue(i);
 
             if (isLocked) {
                 Color dimmed = new Color(baseColor.getRed() / 2, baseColor.getGreen() / 2, baseColor.getBlue() / 2);
                 tileButtons[i].setBackground(dimmed);
 
                 int countdown = rules.getLockCountdown(i);
-                tileButtons[i].setText("WAIT: " + countdown);
-                tileButtons[i].setForeground(Color.RED);
-                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 18));
+                // Show strategic value with lock icon on top, timer with countdown on bottom
+                // (emojis on right)
+                String scoreText = (weight != 0) ? ((weight > 0 ? "+" : "") + (int) weight + " 🔒") : "🔒";
+                tileButtons[i].setText("<html><center>" + scoreText + "<br>" + countdown + " ⏳</center></html>");
+                tileButtons[i].setForeground(Color.WHITE);
+                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 14));
                 tileButtons[i].setBorder(BorderFactory.createLineBorder(Color.RED, 3));
             } else {
                 tileButtons[i].setBackground(baseColor);
-                double weight = rules.getTileStrategicValue(i);
                 if (weight != 0) {
                     tileButtons[i].setText((weight > 0 ? "+" : "") + (int) weight);
                     tileButtons[i].setForeground(weight > 0 ? Color.WHITE : new Color(255, 150, 150));
@@ -426,8 +429,6 @@ public class Main extends JFrame {
         for (int i = 0; i < totalTiles; i++) {
             if (gridState[i] == isYellow) {
                 double val = rules.getTileStrategicValue(i);
-                if (rules.isLocked(i))
-                    val *= 1.2;
                 total += val;
             }
         }

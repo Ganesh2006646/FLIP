@@ -32,11 +32,6 @@ public class Engine {
         for (int i = 0; i < totalTiles; i++) {
             double tileVal = rules.getTileStrategicValue(i);
 
-            // Strategic Bonus for Locked Tiles (Protected Points)
-            if (rules.isLocked(i)) {
-                tileVal *= 1.5; // Locked tiles are worth 50% more due to protection
-            }
-
             if (state[i]) {
                 playerScore += tileVal;
             } else {
@@ -46,8 +41,44 @@ public class Engine {
         return forPlayer ? (playerScore - cpuScore) : (cpuScore - playerScore);
     }
 
+    // Merge Sort: Divide and Conquer - O(n log n)
+    private void mergeSort(List<int[]> list, int left, int right) {
+        if (left < right) {
+            int mid = (left + right) / 2;
+            mergeSort(list, left, mid); // Sort left half
+            mergeSort(list, mid + 1, right); // Sort right half
+            merge(list, left, mid, right); // Merge sorted halves
+        }
+    }
+
+    private void merge(List<int[]> list, int left, int mid, int right) {
+        List<int[]> temp = new ArrayList<>();
+        int i = left, j = mid + 1;
+
+        // Compare and merge in descending order
+        while (i <= mid && j <= right) {
+            if (list.get(i)[1] >= list.get(j)[1]) {
+                temp.add(list.get(i++));
+            } else {
+                temp.add(list.get(j++));
+            }
+        }
+
+        // Copy remaining elements
+        while (i <= mid)
+            temp.add(list.get(i++));
+        while (j <= right)
+            temp.add(list.get(j++));
+
+        // Copy back to original list
+        for (int k = 0; k < temp.size(); k++) {
+            list.set(left + k, temp.get(k));
+        }
+    }
+
     public int getBestMove(boolean[] currentState) {
-        if (new Random().nextDouble() < 0.15) { // 15% blunder factor
+        // 15% blunder factor - sometimes make a random move
+        if (new Random().nextDouble() < 0.15) {
             List<Integer> valid = new ArrayList<>();
             for (int i = 0; i < totalTiles; i++)
                 if (!rules.isLocked(i))
@@ -56,8 +87,8 @@ public class Engine {
                 return valid.get(new Random().nextInt(valid.size()));
         }
 
-        int bestTile = -1;
-        double maxScore = Double.NEGATIVE_INFINITY;
+        // Step 1: Iterate every tile and evaluate them
+        List<int[]> tileScores = new ArrayList<>(); // [tileId, score*1000]
 
         for (int i = 0; i < totalTiles; i++) {
             if (rules.isLocked(i))
@@ -67,17 +98,19 @@ public class Engine {
             simulateFlip(temp, i);
             double score = evaluateState(temp, false);
 
-            if (score > maxScore) {
-                maxScore = score;
-                bestTile = i;
-            }
+            tileScores.add(new int[] { i, (int) (score * 1000) });
         }
-        return bestTile;
+
+        // Step 2: Sort by score descending (Merge Sort)
+        mergeSort(tileScores, 0, tileScores.size() - 1);
+
+        // Step 3: Return the first one (best tile)
+        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
     }
 
     public int getPlayerHint(boolean[] currentState) {
-        int bestTile = -1;
-        double maxScore = Double.NEGATIVE_INFINITY;
+        // Step 1: Iterate every tile and evaluate them
+        List<int[]> tileScores = new ArrayList<>(); // [tileId, score*1000]
 
         for (int i = 0; i < totalTiles; i++) {
             if (rules.isLocked(i))
@@ -85,13 +118,15 @@ public class Engine {
 
             boolean[] temp = currentState.clone();
             simulateFlip(temp, i);
-            double score = evaluateState(temp, true);
+            double score = evaluateState(temp, true); // true = for player
 
-            if (score > maxScore) {
-                maxScore = score;
-                bestTile = i;
-            }
+            tileScores.add(new int[] { i, (int) (score * 1000) });
         }
-        return bestTile;
+
+        // Step 2: Sort by score descending (Merge Sort)
+        mergeSort(tileScores, 0, tileScores.size() - 1);
+
+        // Step 3: Return the first one (best tile)
+        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
     }
 }
