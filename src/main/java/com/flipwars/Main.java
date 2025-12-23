@@ -80,6 +80,8 @@ public class Main extends JFrame {
         for (int i = 0; i < initialMoves; i++) {
             performFlip(rand.nextInt(totalTiles));
         }
+        // Clear locks after initial setup - no tiles locked at game start
+        rules.clearMemory();
 
         if (gamePanel != null) {
             mainPanel.remove(gamePanel);
@@ -137,7 +139,7 @@ public class Main extends JFrame {
 
         new Thread(() -> {
             try {
-                Thread.sleep(800);
+                Thread.sleep(1200); // Delay for better visual separation between moves
             } catch (Exception ignored) {
             }
 
@@ -388,13 +390,13 @@ public class Main extends JFrame {
                 tileButtons[i].setBackground(dimmed);
 
                 int countdown = rules.getLockCountdown(i);
-                // Show strategic value with lock icon on top, timer with countdown on bottom
-                // (emojis on right)
-                String scoreText = (weight != 0) ? ((weight > 0 ? "+" : "") + (int) weight + " 🔒") : "🔒";
-                tileButtons[i].setText("<html><center>" + scoreText + "<br>" + countdown + " ⏳</center></html>");
+                // Clean display: score on top, lock icon, timer below
+                String scoreText = (weight != 0) ? ((weight > 0 ? "+" : "") + (int) weight) : "";
+                tileButtons[i].setText("<html><center><b>" + scoreText + "</b><br>🔒<br><small>" + countdown
+                        + "</small></center></html>");
                 tileButtons[i].setForeground(Color.WHITE);
-                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 14));
-                tileButtons[i].setBorder(BorderFactory.createLineBorder(Color.RED, 3));
+                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 16));
+                tileButtons[i].setBorder(BorderFactory.createLineBorder(new Color(200, 50, 50), 3));
             } else {
                 tileButtons[i].setBackground(baseColor);
                 if (weight != 0) {
