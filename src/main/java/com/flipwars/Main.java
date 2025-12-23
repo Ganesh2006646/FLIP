@@ -426,7 +426,6 @@ public class Main extends JFrame {
         for (int i = 0; i < totalTiles; i++) {
             if (gridState[i] == isYellow) {
                 double val = rules.getTileStrategicValue(i);
-                // Lock Protection Bonus in scoring: if owned and locked, it's safer
                 if (rules.isLocked(i))
                     val *= 1.2;
                 total += val;

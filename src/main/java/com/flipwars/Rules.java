@@ -4,7 +4,7 @@ import java.awt.Color;
 import java.util.LinkedList;
 
 /**
- * Concept: Meta-Heuristics (Tabu Search) & Strategic Weighting.
+ * Tabu Search & Strategic Weighting.
  */
 public class Rules {
     private final int tabuSize;

@@ -5,7 +5,8 @@ set "JAVA_HOME=C:\Program Files\Java\jdk-23"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 
 echo ==========================================
-echo       FLIP WARS - SEMESTER PROJECT
+echo       FLIP WARS -- Team-13
+echo    DATA ANALYSIS OF ALGORITHMS PROJECT
 echo ==========================================
 
 :: 1. Check if source exists
