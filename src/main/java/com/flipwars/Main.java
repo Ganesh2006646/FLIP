@@ -356,9 +356,12 @@ public class Main extends JFrame {
                         "   neighbors in a PLUS (+) formation.\n" +
                         "3. Lock Mechanic: Tiles are 'LOCKED' after use. Check the 'WAIT' timer \n" +
                         "   on the tile to see when it will become available again.\n\n" +
-                        "--- LOCK PROTECTION ---\n" +
-                        "While a tile is LOCKED, it is IMMUNE to flipping from neighbors. \n" +
-                        "Use this to safely hold high-value tiles like Corners!\n\n" +
+                        "--- PURE GREEDY ENGINE (DAA) ---\n" +
+                        "The CPU uses a Pure Greedy Algorithm to select the best move:\n" +
+                        "• ITERATE: Evaluates every valid move on the board.\n" +
+                        "• EVALUATE: Simulates the outcome of each flip numerically.\n" +
+                        "• SORT: Uses MERGE SORT (O(n log n)) to find the optimal move.\n" +
+                        "• SELECT: Picks the move with the highest local score gain.\n\n" +
                         "--- WINNING STRATEGIES ---\n" +
                         "• Corner Control (+25 pts): Secure corners early! Locked corners are \n" +
                         "  impenetrable defensive anchors.\n" +
@@ -390,13 +393,13 @@ public class Main extends JFrame {
                 tileButtons[i].setBackground(dimmed);
 
                 int countdown = rules.getLockCountdown(i);
-                // Clean display: score on top, lock icon, timer below
+                // Display: score on top, WAIT with countdown below in red
                 String scoreText = (weight != 0) ? ((weight > 0 ? "+" : "") + (int) weight) : "";
-                tileButtons[i].setText("<html><center><b>" + scoreText + "</b><br>🔒<br><small>" + countdown
-                        + "</small></center></html>");
+                tileButtons[i].setText("<html><center>" + scoreText + "<br><font color='red'><b>WAIT:" + countdown
+                        + "</b></font></center></html>");
                 tileButtons[i].setForeground(Color.WHITE);
-                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 16));
-                tileButtons[i].setBorder(BorderFactory.createLineBorder(new Color(200, 50, 50), 3));
+                tileButtons[i].setFont(new Font("Arial", Font.BOLD, 14));
+                tileButtons[i].setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
             } else {
                 tileButtons[i].setBackground(baseColor);
                 if (weight != 0) {
