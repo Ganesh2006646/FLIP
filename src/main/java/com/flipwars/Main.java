@@ -143,9 +143,10 @@ public class Main extends JFrame {
             } catch (Exception ignored) {
             }
 
-            int move = ai.getBestMove(gridState);
+            // CPU uses Minimax (Temporal D&C) for look-ahead
+            int move = ai.getBestMoveMinimax(gridState);
             if (move == -1)
-                move = new Random().nextInt(totalTiles);
+                move = ai.getBestMove(gridState); // Fallback to greedy
 
             int finalMove = move;
             SwingUtilities.invokeLater(() -> {
@@ -172,7 +173,10 @@ public class Main extends JFrame {
         if (!isPlayerTurn || isGameOver || inputBlocked)
             return;
 
-        int move = ai.getPlayerHint(gridState);
+        // SOLVE uses Minimax for optimal player moves
+        int move = ai.getPlayerHintMinimax(gridState);
+        if (move == -1)
+            move = ai.getPlayerHint(gridState); // Fallback
         if (move != -1) {
             handlePlayerMove(move);
         }
@@ -305,7 +309,10 @@ public class Main extends JFrame {
         bot.setBackground(COLOR_BG);
         JButton bh = createBtn("Get Hint");
         bh.addActionListener(e -> {
-            int hint = ai.getPlayerHint(gridState);
+            // Hint uses Minimax for best suggestion
+            int hint = ai.getPlayerHintMinimax(gridState);
+            if (hint == -1)
+                hint = ai.getPlayerHint(gridState); // Fallback
             if (hint != -1)
                 tileButtons[hint].setBorder(BorderFactory.createLineBorder(COLOR_HINT, 4));
         });
@@ -349,27 +356,41 @@ public class Main extends JFrame {
         t.setMargin(new Insets(20, 30, 20, 30));
 
         t.setText(
-                "--- HOW TO PLAY ---\n" +
-                        "1. Objective: Conquer the grid by turning all tiles YELLOW or have the \n" +
-                        "   highest Strategic Score after the turn limit.\n" +
-                        "2. Flip Logic: Clicking a tile flips its color and all 4 orthogonal \n" +
-                        "   neighbors in a PLUS (+) formation.\n" +
-                        "3. Lock Mechanic: Tiles are 'LOCKED' after use. Check the 'WAIT' timer \n" +
-                        "   on the tile to see when it will become available again.\n\n" +
-                        "--- PURE GREEDY ENGINE (DAA) ---\n" +
-                        "The CPU uses a Pure Greedy Algorithm to select the best move:\n" +
-                        "• ITERATE: Evaluates every valid move on the board.\n" +
-                        "• EVALUATE: Simulates the outcome of each flip numerically.\n" +
-                        "• SORT: Uses MERGE SORT (O(n log n)) to find the optimal move.\n" +
-                        "• SELECT: Picks the move with the highest local score gain.\n\n" +
-                        "--- WINNING STRATEGIES ---\n" +
-                        "• Corner Control (+25 pts): Secure corners early! Locked corners are \n" +
-                        "  impenetrable defensive anchors.\n" +
-                        "• Edge Supremacy (+15 pts): Edges provide stable strategic points.\n" +
-                        "• Avoid Traps (-5 pts): Tiles near corners are 'Traps'. They lower \n" +
-                        "  your score and expose your corners to enemy flips.\n\n" +
-                        "--- SCORE VALUES ---\n" +
-                        "Corners: 25.0 | Edges: 15.0 | Standard: 5.0 | Traps: -5.0");
+                "=== HOW TO PLAY ===\n" +
+                        "1. OBJECTIVE: Conquer the grid by turning all tiles YELLOW or have\n" +
+                        "   the highest Strategic Score when the turn limit is reached.\n\n" +
+                        "2. FLIP LOGIC: Clicking a tile flips its color AND all 4 orthogonal\n" +
+                        "   neighbors in a PLUS (+) pattern.\n\n" +
+                        "3. LOCK MECHANIC: Tiles are LOCKED after being clicked. Check the\n" +
+                        "   'WAIT' countdown to see when they unlock.\n\n" +
+                        "=== 4 DIVIDE & CONQUER ALGORITHMS ===\n\n" +
+                        "1. MERGE SORT (Search Space D&C) - O(n log n)\n" +
+                        "   • Ranks all possible moves by score\n" +
+                        "   • Divide: Split moves into halves\n" +
+                        "   • Conquer: Sort each half recursively\n" +
+                        "   • Combine: Merge sorted halves\n\n" +
+                        "2. SPATIAL D&C (Quadrant Evaluation) - O(n)\n" +
+                        "   • Evaluates regional control\n" +
+                        "   • Divide: Split grid into 4 quadrants\n" +
+                        "   • Conquer: Score each quadrant\n" +
+                        "   • Combine: Weight corners 2.0x, edges 1.5x\n\n" +
+                        "3. DFS CLUSTERS (Structural D&C) - O(n)\n" +
+                        "   • Finds connected tile groups\n" +
+                        "   • Divide: Separate into components via DFS\n" +
+                        "   • Conquer: Score each island = size^2\n" +
+                        "   • Combine: Sum top 3 largest clusters\n\n" +
+                        "4. MINIMAX (Temporal D&C) - O(b^d)\n" +
+                        "   • Predicts opponent's best response\n" +
+                        "   • Divide: Branch into future states\n" +
+                        "   • Conquer: Evaluate leaf nodes\n" +
+                        "   • Combine: Max/Min selection + Alpha-Beta pruning\n\n" +
+                        "=== SCORING VALUES ===\n" +
+                        "Corners: +25 | Edges: +15 | Standard: +5 | Traps: -5\n\n" +
+                        "=== WINNING STRATEGIES ===\n" +
+                        "• Secure corners early - they're worth the most!\n" +
+                        "• Build large connected clusters for territory control\n" +
+                        "• Avoid trap tiles near corners (-5 points)\n" +
+                        "• Plan around locked tiles for surprise moves");
 
         JScrollPane scroll = new JScrollPane(t);
         scroll.setBorder(null);

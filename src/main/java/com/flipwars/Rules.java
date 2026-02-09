@@ -1,14 +1,16 @@
 package com.flipwars;
 
 import java.awt.Color;
-import java.util.LinkedList;
+import java.util.LinkedHashSet;
+import java.util.Iterator;
 
 /**
  * Tabu Search & Strategic Weighting.
+ * Uses LinkedHashSet for O(1) lookup instead of O(n) LinkedList.
  */
 public class Rules {
     private final int tabuSize;
-    private final LinkedList<Integer> tabuList = new LinkedList<>();
+    private final LinkedHashSet<Integer> tabuSet = new LinkedHashSet<>(); // O(1) contains()
     private final int gridSize;
 
     public static final Color COLOR_PLAYER = new Color(241, 196, 15); // Yellow
@@ -20,26 +22,39 @@ public class Rules {
     }
 
     public void recordMove(int tileId) {
-        tabuList.remove(Integer.valueOf(tileId));
-        tabuList.add(tileId);
-        if (tabuList.size() > tabuSize) {
-            tabuList.removeFirst();
+        // Remove if exists (to maintain order)
+        tabuSet.remove(tileId);
+        tabuSet.add(tileId);
+
+        // Remove oldest if over capacity
+        if (tabuSet.size() > tabuSize) {
+            Iterator<Integer> it = tabuSet.iterator();
+            if (it.hasNext()) {
+                it.next();
+                it.remove();
+            }
         }
     }
 
     public boolean isLocked(int tileId) {
-        return tabuList.contains(tileId);
+        return tabuSet.contains(tileId); // O(1) instead of O(n)!
     }
 
     public int getLockCountdown(int tileId) {
-        int index = tabuList.indexOf(tileId);
-        if (index == -1)
+        if (!tabuSet.contains(tileId))
             return 0;
-        return index + 1;
+
+        int index = 0;
+        for (Integer id : tabuSet) {
+            if (id == tileId)
+                return index + 1;
+            index++;
+        }
+        return 0;
     }
 
     public void clearMemory() {
-        tabuList.clear();
+        tabuSet.clear();
     }
 
     public double getTileStrategicValue(int id) {
