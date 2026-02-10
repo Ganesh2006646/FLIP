@@ -38,10 +38,9 @@ public class Engine {
     /**
      * Combined evaluation using multiple D&C algorithms.
      * Weights:
-     * - Strategic Value: 40%
-     * - Quadrant Control (Spatial D&C): 20%
-     * - Cluster Strength (DFS D&C): 20%
-     * - Minimax Future Score: 20%
+     * - Strategic Value: 40% (Base influence)
+     * - Quadrant Control (Spatial D&C): 2.0x (High reward)
+     * - Cluster Strength (DFS D&C): 0.5x (Moderate reward)
      */
     private double evaluateStateCombined(boolean[] state, boolean forPlayer) {
         // 1. Original strategic value evaluation
@@ -161,10 +160,7 @@ public class Engine {
     }
 
     /**
-     * Get best move using Minimax (D&C Algorithm 4) - for advanced play
-     */
-    /**
-     * Get best move using Tournament Selection (D&C Algorithm 3) - for advanced
+     * Get best move using Tournament Selection (D&C Algorithm 4) - for advanced
      * play
      */
     public int getBestMoveTournament(boolean[] currentState) {

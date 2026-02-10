@@ -469,8 +469,10 @@ public class Main extends JFrame {
         // difference
         double cluster = dac.evaluateClusters(gridState, gridSize, isYellow);
 
-        // Weighted Sum (matches Engine.java logic but for single player display)
-        // Adjusting weights to make score look natural (approx 0-100 range)
+        // Weighted Sum (matches Engine.java logic)
+        // Strategic: 40% (Base influence)
+        // Quadrant: 2.0x (High reward for regional control)
+        // Cluster: 0.5x (Moderate reward for connectivity)
         return (strategic * 0.4) + (quadrant * 2.0) + (cluster * 0.5);
     }
 

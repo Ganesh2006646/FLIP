@@ -10,7 +10,8 @@ import java.util.*;
  * 2. Structural D&C (DFS Clusters) - Graph Theorist
  * 3. Search Space D&C (Tournament Selection) - Strategist
  * 
- * Note: Merge Sort (Search Space D&C) is in Engine.java
+ * Note: Merge Sort (Search Space D&C) is implemented in Engine.java (Algorithm
+ * 1 in docs)
  */
 public class DACAlgorithms {
 
