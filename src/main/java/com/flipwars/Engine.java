@@ -9,7 +9,7 @@ import java.util.*;
  * 1. Merge Sort (Search Space D&C) - For sorting moves by score
  * 2. Spatial D&C (Quadrant Evaluation) - From DACAlgorithms
  * 3. Structural D&C (DFS Clusters) - From DACAlgorithms
- * 4. Temporal D&C (Minimax) - From DACAlgorithms
+ * 4. Search Space D&C (Tournament Selection) - From DACAlgorithms
  */
 public class Engine {
     private final int totalTiles;
@@ -56,8 +56,11 @@ public class Engine {
         double oppClusterScore = dac.evaluateClusters(state, gridSize, !forPlayer);
         double clusterScore = myClusterScore - (oppClusterScore * 1.5); // Stronger penalty
 
-        // Combine with weights
-        return (strategicScore * 0.4) + (quadrantScore * 0.2) + (clusterScore * 0.2);
+        // Combine: Weights tuned for 0-100 scale (matches UI display)
+        // Strategic: 40% (Base influence)
+        // Quadrant: 2.0x (High reward for regional control)
+        // Cluster: 0.5x (Moderate reward for connectivity)
+        return (strategicScore * 0.4) + (quadrantScore * 2.0) + (clusterScore * 0.5);
     }
 
     /**
@@ -160,8 +163,18 @@ public class Engine {
     /**
      * Get best move using Minimax (D&C Algorithm 4) - for advanced play
      */
-    public int getBestMoveMinimax(boolean[] currentState) {
-        return dac.minimaxBestMove(currentState, graph, rules, false);
+    /**
+     * Get best move using Tournament Selection (D&C Algorithm 3) - for advanced
+     * play
+     */
+    public int getBestMoveTournament(boolean[] currentState) {
+        List<Integer> availableMoves = new ArrayList<>();
+        for (int i = 0; i < totalTiles; i++) {
+            if (!rules.isLocked(i)) {
+                availableMoves.add(i);
+            }
+        }
+        return dac.tournamentSelection(availableMoves, currentState, graph, rules, false);
     }
 
     /**
@@ -192,9 +205,15 @@ public class Engine {
     }
 
     /**
-     * Get hint using Minimax for player
+     * Get hint using Tournament Selection for player
      */
-    public int getPlayerHintMinimax(boolean[] currentState) {
-        return dac.minimaxBestMove(currentState, graph, rules, true);
+    public int getPlayerHintTournament(boolean[] currentState) {
+        List<Integer> availableMoves = new ArrayList<>();
+        for (int i = 0; i < totalTiles; i++) {
+            if (!rules.isLocked(i)) {
+                availableMoves.add(i);
+            }
+        }
+        return dac.tournamentSelection(availableMoves, currentState, graph, rules, true);
     }
 }

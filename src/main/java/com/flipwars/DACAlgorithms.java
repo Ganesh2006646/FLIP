@@ -8,7 +8,7 @@ import java.util.*;
  * Contains 3 D&C algorithms:
  * 1. Spatial D&C (Quadrant Evaluation) - Geometer
  * 2. Structural D&C (DFS Clusters) - Graph Theorist
- * 3. Temporal D&C (Minimax) - Futurist
+ * 3. Search Space D&C (Tournament Selection) - Strategist
  * 
  * Note: Merge Sort (Search Space D&C) is in Engine.java
  */
@@ -163,120 +163,74 @@ public class DACAlgorithms {
     }
 
     // =========================================================================
-    // ALGORITHM 3: TEMPORAL D&C - Minimax (Futurist)
+    // ALGORITHM 3: SEARCH SPACE D&C - Tournament Selection (Strategist)
     // =========================================================================
 
     /**
-     * Divide: Generate future states for each possible move
-     * Conquer: Recursively evaluate opponent's best response
-     * Combine: Pick move that maximizes our score / minimizes opponent's
+     * Divide: Split moves into brackets (Pairwise comparison)
+     * Conquer: Compare moves head-to-head to find the "winner" of each bracket
+     * Combine: Winners advance to next round until one champion remains
      * 
-     * @param board     Current board state
-     * @param graph     Graph for neighbor lookups
-     * @param rules     Rules for locked tiles and strategic values
-     * @param forPlayer If true, maximizing for player
-     * @return Best move index
+     * Analysis: O(n) time complexity (n-1 comparisons to find max)
+     * This is a "Search Space" D&C approach similar to finding max in array.
+     * 
+     * @param availableMoves List of valid move indices
+     * @param board          Current board state
+     * @param graph          Graph for simulation
+     * @param rules          Rules for scoring
+     * @param forPlayer      True if evaluating for player
+     * @return The index of the champion move
      */
-    public int minimaxBestMove(boolean[] board, Graph graph, Rules rules, boolean forPlayer) {
-        int bestMove = -1;
-        double bestScore = forPlayer ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-        int totalTiles = board.length;
+    public int tournamentSelection(List<Integer> availableMoves, boolean[] board,
+            Graph graph, Rules rules, boolean forPlayer) {
+        // Base case: 0 or 1 move left
+        if (availableMoves.isEmpty())
+            return -1;
+        if (availableMoves.size() == 1)
+            return availableMoves.get(0);
 
-        for (int move = 0; move < totalTiles; move++) {
-            if (rules.isLocked(move))
-                continue;
+        // Divide: Split into two halves (Left Bracket vs Right Bracket)
+        int mid = availableMoves.size() / 2;
+        List<Integer> leftBracket = availableMoves.subList(0, mid);
+        List<Integer> rightBracket = availableMoves.subList(mid, availableMoves.size());
 
-            // Simulate this move
-            boolean[] newState = board.clone();
-            simulateFlip(newState, move, graph, rules);
+        // Conquer: Recursively find winners of sub-brackets
+        int leftChampion = tournamentSelection(leftBracket, board, graph, rules, forPlayer);
+        int rightChampion = tournamentSelection(rightBracket, board, graph, rules, forPlayer);
 
-            // Recursively evaluate (depth 2 for performance)
-            double score = minimaxScore(newState, 2, !forPlayer, graph, rules,
-                    Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
-
-            if (forPlayer) {
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMove = move;
-                }
-            } else {
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestMove = move;
-                }
-            }
-        }
-
-        return bestMove;
+        // Combine: Head-to-head final
+        return compareMoves(leftChampion, rightChampion, board, graph, rules, forPlayer);
     }
 
     /**
-     * Minimax recursive evaluation with Alpha-Beta pruning
-     * 
-     * @param board        Current state
-     * @param depth        Remaining depth to search
-     * @param isMaximizing True if maximizing player's turn
-     * @param alpha        Best score for maximizer
-     * @param beta         Best score for minimizer
-     * @return Evaluation score
+     * Compare two moves and return the winner.
      */
-    private double minimaxScore(boolean[] board, int depth, boolean isMaximizing,
-            Graph graph, Rules rules, double alpha, double beta) {
-        // Base case: leaf node
-        if (depth == 0) {
-            return evaluateBoard(board, rules);
-        }
+    private int compareMoves(int moveA, int moveB, boolean[] board, Graph graph,
+            Rules rules, boolean forPlayer) {
+        double scoreA = evaluateMove(moveA, board, graph, rules, forPlayer);
+        double scoreB = evaluateMove(moveB, board, graph, rules, forPlayer);
 
-        int totalTiles = board.length;
+        // Return the one with higher score
+        return (scoreA >= scoreB) ? moveA : moveB;
+    }
 
-        if (isMaximizing) {
-            double maxEval = Double.NEGATIVE_INFINITY;
+    /**
+     * Evaluate a single move's immediate impact.
+     */
+    private double evaluateMove(int move, boolean[] board, Graph graph, Rules rules, boolean forPlayer) {
+        if (move == -1)
+            return Double.NEGATIVE_INFINITY;
 
-            for (int move = 0; move < totalTiles; move++) {
-                if (rules.isLocked(move))
-                    continue;
-
-                boolean[] newState = board.clone();
-                simulateFlip(newState, move, graph, rules);
-
-                double eval = minimaxScore(newState, depth - 1, false, graph, rules, alpha, beta);
-                maxEval = Math.max(maxEval, eval);
-                alpha = Math.max(alpha, eval);
-
-                // Alpha-Beta pruning
-                if (beta <= alpha)
-                    break;
-            }
-
-            return maxEval == Double.NEGATIVE_INFINITY ? evaluateBoard(board, rules) : maxEval;
-        } else {
-            double minEval = Double.POSITIVE_INFINITY;
-
-            for (int move = 0; move < totalTiles; move++) {
-                if (rules.isLocked(move))
-                    continue;
-
-                boolean[] newState = board.clone();
-                simulateFlip(newState, move, graph, rules);
-
-                double eval = minimaxScore(newState, depth - 1, true, graph, rules, alpha, beta);
-                minEval = Math.min(minEval, eval);
-                beta = Math.min(beta, eval);
-
-                // Alpha-Beta pruning
-                if (beta <= alpha)
-                    break;
-            }
-
-            return minEval == Double.POSITIVE_INFINITY ? evaluateBoard(board, rules) : minEval;
-        }
+        boolean[] tempState = board.clone();
+        simulateFlip(tempState, move, graph, rules);
+        return evaluateBoard(tempState, rules, forPlayer);
     }
 
     /**
      * Evaluate board state using strategic tile values
      * Positive = CPU advantage, Negative = Player advantage
      */
-    private double evaluateBoard(boolean[] board, Rules rules) {
+    private double evaluateBoard(boolean[] board, Rules rules, boolean forPlayer) {
         double cpuScore = 0;
         double playerScore = 0;
 
@@ -288,8 +242,7 @@ public class DACAlgorithms {
                 cpuScore += value;
             }
         }
-
-        return cpuScore - playerScore;
+        return forPlayer ? (playerScore - cpuScore) : (cpuScore - playerScore);
     }
 
     /**

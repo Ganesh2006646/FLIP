@@ -375,11 +375,11 @@ public class Main extends JFrame {
                         "   • Divide: Separate into components via DFS\n" +
                         "   • Conquer: Score each island = size^2\n" +
                         "   • Combine: Sum top 3 largest clusters\n\n" +
-                        "4. MINIMAX (Temporal D&C) - O(b^d)\n" +
-                        "   • Predicts opponent's best response\n" +
-                        "   • Divide: Branch into future states\n" +
-                        "   • Conquer: Evaluate leaf nodes\n" +
-                        "   • Combine: Max/Min selection + Alpha-Beta pruning\n\n" +
+                        "4. TOURNAMENT SELECTION (Search Space D&C) - O(n)\n" +
+                        "   • Selects best move via knockout tournament\n" +
+                        "   • Divide: Split moves into brackets\n" +
+                        "   • Conquer: Find winner of each bracket\n" +
+                        "   • Combine: Champions face off for title\n\n" +
                         "=== SCORING VALUES ===\n" +
                         "Corners: +25 | Edges: +15 | Standard: +5 | Traps: -5\n\n" +
                         "=== WINNING STRATEGIES ===\n" +
@@ -447,14 +447,31 @@ public class Main extends JFrame {
     }
 
     private double calculateWeightedScore(boolean isYellow) {
-        double total = 0;
+        // 1. Strategic Score (Tile Values) - 40%
+        double strategic = 0;
         for (int i = 0; i < totalTiles; i++) {
             if (gridState[i] == isYellow) {
-                double val = rules.getTileStrategicValue(i);
-                total += val;
+                strategic += rules.getTileStrategicValue(i);
             }
         }
-        return total;
+
+        // 2. Quadrant Score (Spatial D&C) - 20%
+        // reuse the existing dac instance from Engine which we don't have access to
+        // directly here
+        // so we create a temp instance or better yet, make AI expose it?
+        // Let's use a fresh DACAlgorithms instance since it is stateless for these
+        // methods
+        DACAlgorithms dac = new DACAlgorithms();
+        double quadrant = dac.evaluateQuadrants(gridState, gridSize, isYellow);
+
+        // 3. Cluster Score (Structural D&C) - 20%
+        // Note: For display, we just show raw cluster strength, not the relative
+        // difference
+        double cluster = dac.evaluateClusters(gridState, gridSize, isYellow);
+
+        // Weighted Sum (matches Engine.java logic but for single player display)
+        // Adjusting weights to make score look natural (approx 0-100 range)
+        return (strategic * 0.4) + (quadrant * 2.0) + (cluster * 0.5);
     }
 
     private void celebrate(boolean human) {
