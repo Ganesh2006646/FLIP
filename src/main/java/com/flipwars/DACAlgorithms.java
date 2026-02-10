@@ -4,14 +4,22 @@ import java.util.*;
 
 /**
  * Divide and Conquer Algorithms for Board Evaluation.
- * 
- * Contains 3 D&C algorithms:
- * 1. Spatial D&C (Quadrant Evaluation) - Geometer
- * 2. Structural D&C (DFS Clusters) - Graph Theorist
- * 3. Search Space D&C (Tournament Selection) - Strategist
- * 
- * Note: Merge Sort (Search Space D&C) is implemented in Engine.java (Algorithm
- * 1 in docs)
+ * <p>
+ * Contains 4 D&C algorithms used by the Engine for move evaluation and selection.
+ * Each algorithm follows the classic D&C pattern: Divide, Conquer, Combine.
+ * </p>
+ *
+ * <h2>Algorithms:</h2>
+ * <ol>
+ *   <li><b>Spatial D&C</b> (Quadrant Evaluation) — O(n) — Geometer</li>
+ *   <li><b>Structural D&C</b> (DFS Clusters) — O(V+E) — Graph Theorist</li>
+ *   <li><b>Search Space D&C</b> (Tournament Selection) — O(n) — Strategist</li>
+ *   <li><b>Threat Detection D&C</b> (Quadrant Threats) — O(n) — Tactician</li>
+ * </ol>
+ *
+ * <p>Note: Merge Sort (5th D&C) is implemented in {@link Engine}.</p>
+ *
+ * @see Engine
  */
 public class DACAlgorithms {
 
@@ -201,6 +209,102 @@ public class DACAlgorithms {
 
         // Combine: Head-to-head final
         return compareMoves(leftChampion, rightChampion, board, graph, rules, forPlayer);
+    }
+
+    // =========================================================================
+    // ALGORITHM 4: THREAT DETECTION D&C - Quadrant Threats (Tactician)
+    // =========================================================================
+
+    /**
+     * Divide: Split NxN grid into 4 quadrants (2x2 on a 4x4 board)
+     * Conquer: For each quadrant, count threat level — how many enemy tiles
+     *          are adjacent to friendly tiles (exposed/vulnerable tiles)
+     * Combine: Score = (threats to opponent) - (threats to self)
+     *          Positive = opponent is more exposed, we're safer
+     * 
+     * A "threat" is defined as: a friendly tile that has one or more enemy
+     * neighbors. More enemy neighbors = higher threat (tile is harder to hold).
+     * 
+     * Analysis: O(n) time where n = total tiles (each tile checked once)
+     * Space: O(1) extra (just counters per quadrant)
+     * 
+     * Effect on gameplay: CPU prioritizes moves that EXPOSE player tiles
+     * to enemy neighbors while PROTECTING its own tiles from exposure.
+     * 
+     * @param board     Current board state (true = player, false = CPU)
+     * @param gridSize  Size of the grid (4, 5, or 6)
+     * @param forPlayer If true, positive score favors player
+     * @return Threat-based evaluation score
+     */
+    public double evaluateThreats(boolean[] board, int gridSize, boolean forPlayer) {
+        int half = gridSize / 2;
+
+        // Divide into 4 quadrants
+        double tlThreat = evaluateQuadrantThreats(board, 0, 0, half, gridSize, forPlayer);
+        double trThreat = evaluateQuadrantThreats(board, 0, half, gridSize - half, gridSize, forPlayer);
+        double blThreat = evaluateQuadrantThreats(board, half, 0, gridSize - half, gridSize, forPlayer);
+        double brThreat = evaluateQuadrantThreats(board, half, half, gridSize - half, gridSize, forPlayer);
+
+        // Combine: Quadrants with more of OUR tiles under threat are worse
+        // Corner quadrants weighted higher (strategic corners are more valuable to defend)
+        double cornerWeight = 2.0;
+        double edgeWeight = 1.5;
+
+        return (tlThreat * cornerWeight) + (trThreat * edgeWeight)
+                + (blThreat * edgeWeight) + (brThreat * cornerWeight);
+    }
+
+    /**
+     * Conquer step: Evaluate threats within a single quadrant.
+     * 
+     * For each tile in the quadrant:
+     *   - Count how many of its neighbors are enemy tiles
+     *   - If the tile is OURS and has enemy neighbors → we are threatened (bad)
+     *   - If the tile is ENEMY and has our neighbors → enemy is threatened (good)
+     * 
+     * Score = (enemy tiles under threat) - (our tiles under threat)
+     */
+    private double evaluateQuadrantThreats(boolean[] board, int startRow, int startCol,
+            int size, int gridSize, boolean forPlayer) {
+        double ourThreats = 0;    // How threatened are OUR tiles
+        double enemyThreats = 0;  // How threatened are ENEMY tiles
+
+        boolean ourColor = forPlayer;  // true = player tiles are "ours"
+
+        for (int r = startRow; r < startRow + size && r < gridSize; r++) {
+            for (int c = startCol; c < startCol + size && c < gridSize; c++) {
+                int id = r * gridSize + c;
+                boolean tileIsOurs = (board[id] == ourColor);
+
+                // Count enemy neighbors for this tile
+                int enemyNeighborCount = 0;
+                // Up
+                if (r > 0 && board[(r - 1) * gridSize + c] != board[id])
+                    enemyNeighborCount++;
+                // Down
+                if (r < gridSize - 1 && board[(r + 1) * gridSize + c] != board[id])
+                    enemyNeighborCount++;
+                // Left
+                if (c > 0 && board[r * gridSize + (c - 1)] != board[id])
+                    enemyNeighborCount++;
+                // Right
+                if (c < gridSize - 1 && board[r * gridSize + (c + 1)] != board[id])
+                    enemyNeighborCount++;
+
+                if (enemyNeighborCount > 0) {
+                    if (tileIsOurs) {
+                        // Our tile is exposed to enemies — BAD
+                        ourThreats += enemyNeighborCount;
+                    } else {
+                        // Enemy tile is exposed to us — GOOD
+                        enemyThreats += enemyNeighborCount;
+                    }
+                }
+            }
+        }
+
+        // Positive = enemy is more exposed than us (favorable)
+        return enemyThreats - ourThreats;
     }
 
     /**

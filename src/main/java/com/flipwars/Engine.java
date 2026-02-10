@@ -3,13 +3,32 @@ package com.flipwars;
 import java.util.*;
 
 /**
- * Game AI Engine using Divide & Conquer Algorithms.
- * 
- * Uses 4 D&C algorithms for move evaluation:
- * 1. Merge Sort (Search Space D&C) - For sorting moves by score
- * 2. Spatial D&C (Quadrant Evaluation) - From DACAlgorithms
- * 3. Structural D&C (DFS Clusters) - From DACAlgorithms
- * 4. Search Space D&C (Tournament Selection) - From DACAlgorithms
+ * Game AI Engine — Supports Multiple Algorithm Versions.
+ * <p>
+ * This engine can switch between different algorithm paradigms at runtime,
+ * allowing direct comparison of AI behavior across review milestones.
+ * </p>
+ *
+ * <h2>Version 1 (R1 — Greedy Baseline):</h2>
+ * <ul>
+ *   <li>Simple tile-value counting (corners, edges, traps)</li>
+ *   <li>15% random blunder factor (makes CPU beatable)</li>
+ *   <li>Merge Sort for move ranking</li>
+ * </ul>
+ *
+ * <h2>Version 2 (R2 — Divide & Conquer):</h2>
+ * <ul>
+ *   <li>5 D&C algorithms for sophisticated board evaluation</li>
+ *   <li>Tournament Selection for CPU move (O(n))</li>
+ *   <li>Merge Sort for Player Hint ranking (O(n log n))</li>
+ *   <li>Spatial, Cluster, and Threat D&C for scoring</li>
+ * </ul>
+ *
+ * <h2>Version 3 (R3 — Coming Soon):</h2>
+ * <ul>
+ *   <li>Backtracking / Minimax for lookahead</li>
+ *   <li>Dynamic Programming for state caching</li>
+ * </ul>
  */
 public class Engine {
     private final int totalTiles;
@@ -17,6 +36,9 @@ public class Engine {
     private final Rules rules;
     private final DACAlgorithms dac;
     private final int gridSize;
+
+    /** Current algorithm version: 1 = R1 Greedy, 2 = R2 D&C, 3 = R3 (future) */
+    private int version = 2;
 
     public Engine(int totalTiles, Graph graph, Rules rules) {
         this.totalTiles = totalTiles;
@@ -26,190 +48,248 @@ public class Engine {
         this.gridSize = (int) Math.sqrt(totalTiles);
     }
 
+    /**
+     * Sets the algorithm version for the AI.
+     * @param v 1 = R1 Greedy, 2 = R2 D&C
+     */
+    public void setVersion(int v) {
+        this.version = v;
+    }
+
+    /** Returns the currently active version. */
+    public int getVersion() {
+        return version;
+    }
+
+    // =========================================================================
+    // MAIN ENTRY POINTS (Delegates to version-specific logic)
+    // =========================================================================
+
+    /**
+     * Determines the best move for the CPU.
+     * Delegates to R1 (Greedy) or R2 (D&C) based on selected version.
+     *
+     * @param currentState Current board (true=Yellow/Player, false=Grey/CPU)
+     * @return Tile ID of the best move, or -1 if no valid moves
+     */
+    public int getBestMove(boolean[] currentState) {
+        if (version == 1) {
+            return getBestMoveR1(currentState);
+        } else {
+            return getBestMoveR2(currentState);
+        }
+    }
+
+    /**
+     * Generates a strategic hint for the human player.
+     * Delegates to R1 (Greedy) or R2 (D&C) based on selected version.
+     *
+     * @param currentState Current board state
+     * @return Tile ID of the best move for the player
+     */
+    public int getPlayerHint(boolean[] currentState) {
+        if (version == 1) {
+            return getPlayerHintR1(currentState);
+        } else {
+            return getPlayerHintR2(currentState);
+        }
+    }
+
+    // =========================================================================
+    // VERSION 2: DIVIDE & CONQUER (R2 — Current / Smart)
+    // CPU Move:    Tournament Selection D&C — O(n)
+    // Player Hint: Merge Sort D&C — O(n log n)
+    // Scoring:     Spatial + Cluster + Threat D&C
+    // =========================================================================
+
+    /**
+     * R2 CPU Move: Uses Tournament Selection to find the single best move.
+     * The tournament evaluates each move using the combined D&C scoring.
+     */
+    private int getBestMoveR2(boolean[] currentState) {
+        List<Integer> availableMoves = new ArrayList<>();
+        for (int i = 0; i < totalTiles; i++) {
+            if (!rules.isLocked(i)) availableMoves.add(i);
+        }
+        if (availableMoves.isEmpty()) return -1;
+
+        // Tournament Selection D&C: O(n) — finds the champion move
+        return dac.tournamentSelection(availableMoves, currentState, graph, rules, false);
+    }
+
+    /**
+     * R2 Player Hint: Uses Merge Sort to rank ALL moves, then picks the top one.
+     * This requires the full sorted ranking (not just the max).
+     */
+    private int getPlayerHintR2(boolean[] currentState) {
+        List<int[]> tileScores = new ArrayList<>();
+
+        for (int i = 0; i < totalTiles; i++) {
+            if (rules.isLocked(i)) continue;
+
+            boolean[] temp = currentState.clone();
+            simulateFlip(temp, i);
+            double score = evaluateStateCombined(temp, true);
+            tileScores.add(new int[] { i, (int) (score * 1000) });
+        }
+
+        // Merge Sort D&C: O(n log n) — full ranking
+        if (!tileScores.isEmpty()) {
+            mergeSort(tileScores, 0, tileScores.size() - 1);
+        }
+
+        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
+    }
+
+    /**
+     * R2 Combined Evaluation: Weighted sum of 4 scoring components.
+     * <pre>
+     * FinalScore = (Strategic * 0.2) + (Spatial * 0.25)
+     *            + (Cluster * 0.25) + (Threat * 0.3)
+     * </pre>
+     */
+    private double evaluateStateCombined(boolean[] state, boolean forPlayer) {
+        double strategicScore = evaluateStrategic(state, forPlayer);
+        double quadrantScore = dac.evaluateQuadrants(state, gridSize, forPlayer);
+
+        double myClusterScore = dac.evaluateClusters(state, gridSize, forPlayer);
+        double oppClusterScore = dac.evaluateClusters(state, gridSize, !forPlayer);
+        double clusterScore = myClusterScore - (oppClusterScore * 1.5);
+
+        double threatScore = dac.evaluateThreats(state, gridSize, forPlayer);
+
+        return (strategicScore * 0.2) + (quadrantScore * 0.25)
+                + (clusterScore * 0.25) + (threatScore * 0.3);
+    }
+
+    // =========================================================================
+    // VERSION 1: GREEDY (R1 — Baseline for Comparison)
+    // CPU Move:    Greedy best with 15% blunder factor
+    // Player Hint: Greedy best (no blunder)
+    // Scoring:     Simple tile value counting
+    // =========================================================================
+
+    /**
+     * R1 CPU Move: Greedy evaluation with 15% random blunder.
+     * Evaluates each tile by simple score difference, sorted via Merge Sort.
+     * The blunder factor makes the CPU occasionally pick a random move,
+     * simulating imperfect play for an easier difficulty.
+     */
+    private int getBestMoveR1(boolean[] currentState) {
+        // 15% blunder factor — occasionally make a random move
+        if (new Random().nextDouble() < 0.15) {
+            List<Integer> valid = new ArrayList<>();
+            for (int i = 0; i < totalTiles; i++) {
+                if (!rules.isLocked(i)) valid.add(i);
+            }
+            if (!valid.isEmpty()) return valid.get(new Random().nextInt(valid.size()));
+        }
+
+        List<int[]> tileScores = new ArrayList<>();
+        for (int i = 0; i < totalTiles; i++) {
+            if (rules.isLocked(i)) continue;
+            boolean[] temp = currentState.clone();
+            simulateFlip(temp, i);
+            double score = evaluateStateGreedy(temp, false);
+            tileScores.add(new int[] { i, (int) (score * 1000) });
+        }
+
+        mergeSort(tileScores, 0, tileScores.size() - 1);
+        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
+    }
+
+    /**
+     * R1 Player Hint: Same greedy logic but without the blunder factor.
+     */
+    private int getPlayerHintR1(boolean[] currentState) {
+        List<int[]> tileScores = new ArrayList<>();
+        for (int i = 0; i < totalTiles; i++) {
+            if (rules.isLocked(i)) continue;
+            boolean[] temp = currentState.clone();
+            simulateFlip(temp, i);
+            double score = evaluateStateGreedy(temp, true);
+            tileScores.add(new int[] { i, (int) (score * 1000) });
+        }
+
+        mergeSort(tileScores, 0, tileScores.size() - 1);
+        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
+    }
+
+    /**
+     * R1 Evaluation: Simple tile value counting.
+     * Score = sum(our tile values) - sum(opponent tile values).
+     * No spatial awareness, no cluster detection, no threat analysis.
+     */
+    private double evaluateStateGreedy(boolean[] state, boolean forPlayer) {
+        double playerScore = 0, cpuScore = 0;
+        for (int i = 0; i < totalTiles; i++) {
+            double tileVal = rules.getTileStrategicValue(i);
+            if (state[i]) playerScore += tileVal;
+            else cpuScore += tileVal;
+        }
+        return forPlayer ? (playerScore - cpuScore) : (cpuScore - playerScore);
+    }
+
+    // =========================================================================
+    // SHARED: Strategic Evaluation (Used by R2's combined scoring)
+    // =========================================================================
+
+    /**
+     * Strategic tile value evaluation.
+     * Corners = +25, Edges = +15, Standard = +5, Traps = -5.
+     */
+    private double evaluateStrategic(boolean[] state, boolean forPlayer) {
+        double playerScore = 0, cpuScore = 0;
+        for (int i = 0; i < totalTiles; i++) {
+            double tileVal = rules.getTileStrategicValue(i);
+            if (state[i]) playerScore += tileVal;
+            else cpuScore += tileVal;
+        }
+        return forPlayer ? (playerScore - cpuScore) : (cpuScore - playerScore);
+    }
+
+    // =========================================================================
+    // SHARED: Simulation Helper
+    // =========================================================================
+
+    /** Simulates flipping a tile and its neighbors (respects locks). */
     private void simulateFlip(boolean[] state, int tileId) {
         for (int neighbor : graph.getNeighbors(tileId)) {
-            // Lock Protection: Locked tiles are immune
             if (!rules.isLocked(neighbor)) {
                 state[neighbor] = !state[neighbor];
             }
         }
     }
 
-    /**
-     * Combined evaluation using multiple D&C algorithms.
-     * Weights:
-     * - Strategic Value: 40% (Base influence)
-     * - Quadrant Control (Spatial D&C): 2.0x (High reward)
-     * - Cluster Strength (DFS D&C): 0.5x (Moderate reward)
-     */
-    private double evaluateStateCombined(boolean[] state, boolean forPlayer) {
-        // 1. Original strategic value evaluation
-        double strategicScore = evaluateStrategic(state, forPlayer);
-
-        // 2. Spatial D&C: Quadrant control
-        double quadrantScore = dac.evaluateQuadrants(state, gridSize, forPlayer);
-
-        // 3. Structural D&C: Cluster strength
-        // FIX: Penalize opponent clusters more heavily (1.5x)
-        double myClusterScore = dac.evaluateClusters(state, gridSize, forPlayer);
-        double oppClusterScore = dac.evaluateClusters(state, gridSize, !forPlayer);
-        double clusterScore = myClusterScore - (oppClusterScore * 1.5); // Stronger penalty
-
-        // Combine: Weights tuned for 0-100 scale (matches UI display)
-        // Strategic: 40% (Base influence)
-        // Quadrant: 2.0x (High reward for regional control)
-        // Cluster: 0.5x (Moderate reward for connectivity)
-        return (strategicScore * 0.4) + (quadrantScore * 2.0) + (clusterScore * 0.5);
-    }
-
-    /**
-     * Original strategic evaluation based on tile values
-     */
-    private double evaluateStrategic(boolean[] state, boolean forPlayer) {
-        double playerScore = 0;
-        double cpuScore = 0;
-
-        for (int i = 0; i < totalTiles; i++) {
-            double tileVal = rules.getTileStrategicValue(i);
-
-            if (state[i]) {
-                playerScore += tileVal;
-            } else {
-                cpuScore += tileVal;
-            }
-        }
-        return forPlayer ? (playerScore - cpuScore) : (cpuScore - playerScore);
-    }
-
     // =========================================================================
-    // D&C ALGORITHM 1: MERGE SORT (Search Space D&C)
+    // SHARED: Merge Sort D&C (Used by R1 + R2 Hints)
     // =========================================================================
 
     /**
-     * Merge Sort: Divide and Conquer - O(n log n)
-     * Divide: Split list into two halves
-     * Conquer: Recursively sort each half
-     * Combine: Merge sorted halves in descending order
+     * Merge Sort: Divide and Conquer — O(n log n).
+     * Divide:  Split list into two halves.
+     * Conquer: Recursively sort each half.
+     * Combine: Merge sorted halves in descending order (best move first).
      */
     private void mergeSort(List<int[]> list, int left, int right) {
         if (left < right) {
             int mid = (left + right) / 2;
-            mergeSort(list, left, mid); // Divide: left half
-            mergeSort(list, mid + 1, right); // Divide: right half
-            merge(list, left, mid, right); // Combine: merge
+            mergeSort(list, left, mid);
+            mergeSort(list, mid + 1, right);
+            merge(list, left, mid, right);
         }
     }
 
-    /**
-     * Merge step: Combine two sorted sublists
-     */
+    /** Merge step: Combine two sorted sublists in descending order. */
     private void merge(List<int[]> list, int left, int mid, int right) {
         List<int[]> temp = new ArrayList<>();
         int i = left, j = mid + 1;
-
-        // Compare and merge in descending order
         while (i <= mid && j <= right) {
-            if (list.get(i)[1] >= list.get(j)[1]) {
-                temp.add(list.get(i++));
-            } else {
-                temp.add(list.get(j++));
-            }
+            if (list.get(i)[1] >= list.get(j)[1]) temp.add(list.get(i++));
+            else temp.add(list.get(j++));
         }
-
-        // Copy remaining elements
-        while (i <= mid)
-            temp.add(list.get(i++));
-        while (j <= right)
-            temp.add(list.get(j++));
-
-        // Copy back to original list
-        for (int k = 0; k < temp.size(); k++) {
-            list.set(left + k, temp.get(k));
-        }
-    }
-
-    // =========================================================================
-    // MOVE SELECTION METHODS
-    // =========================================================================
-
-    /**
-     * Get best move for CPU using combined D&C evaluation + Merge Sort
-     */
-    public int getBestMove(boolean[] currentState) {
-        // Step 1: Evaluate all possible moves
-        List<int[]> tileScores = new ArrayList<>(); // [tileId, score*1000]
-
-        for (int i = 0; i < totalTiles; i++) {
-            if (rules.isLocked(i))
-                continue;
-
-            boolean[] temp = currentState.clone();
-            simulateFlip(temp, i);
-            double score = evaluateStateCombined(temp, false); // Combined D&C evaluation
-
-            tileScores.add(new int[] { i, (int) (score * 1000) });
-        }
-
-        // Step 2: Sort by score descending using Merge Sort (D&C Algorithm 1)
-        if (!tileScores.isEmpty()) {
-            mergeSort(tileScores, 0, tileScores.size() - 1);
-        }
-
-        // Step 3: Return the best move (no randomization - deterministic)
-        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
-    }
-
-    /**
-     * Get best move using Tournament Selection (D&C Algorithm 4) - for advanced
-     * play
-     */
-    public int getBestMoveTournament(boolean[] currentState) {
-        List<Integer> availableMoves = new ArrayList<>();
-        for (int i = 0; i < totalTiles; i++) {
-            if (!rules.isLocked(i)) {
-                availableMoves.add(i);
-            }
-        }
-        return dac.tournamentSelection(availableMoves, currentState, graph, rules, false);
-    }
-
-    /**
-     * Get hint for player using combined D&C evaluation
-     */
-    public int getPlayerHint(boolean[] currentState) {
-        // Step 1: Evaluate all possible moves
-        List<int[]> tileScores = new ArrayList<>(); // [tileId, score*1000]
-
-        for (int i = 0; i < totalTiles; i++) {
-            if (rules.isLocked(i))
-                continue;
-
-            boolean[] temp = currentState.clone();
-            simulateFlip(temp, i);
-            double score = evaluateStateCombined(temp, true); // true = for player
-
-            tileScores.add(new int[] { i, (int) (score * 1000) });
-        }
-
-        // Step 2: Sort by score descending using Merge Sort
-        if (!tileScores.isEmpty()) {
-            mergeSort(tileScores, 0, tileScores.size() - 1);
-        }
-
-        // Step 3: Return the best move for player
-        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
-    }
-
-    /**
-     * Get hint using Tournament Selection for player
-     */
-    public int getPlayerHintTournament(boolean[] currentState) {
-        List<Integer> availableMoves = new ArrayList<>();
-        for (int i = 0; i < totalTiles; i++) {
-            if (!rules.isLocked(i)) {
-                availableMoves.add(i);
-            }
-        }
-        return dac.tournamentSelection(availableMoves, currentState, graph, rules, true);
+        while (i <= mid) temp.add(list.get(i++));
+        while (j <= right) temp.add(list.get(j++));
+        for (int k = 0; k < temp.size(); k++) list.set(left + k, temp.get(k));
     }
 }

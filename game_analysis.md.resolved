@@ -1,21 +1,50 @@
-# Flip Wars — Complete Game & Algorithm Analysis
+# Flip Wars — Complete Game & Algorithm Analysis (Review 2)
 
-## 📋 1. What Is Flip Wars?
+## 1. What Is Flip Wars?
 
-Flip Wars is a **two-player strategic tile-flipping board game** where a human player (Yellow) battles a CPU opponent (Grey). The game demonstrates the practical use of **4 Divide & Conquer algorithms** from a DAA (Design & Analysis of Algorithms) course.
+Flip Wars is a **two-player strategic tile-flipping board game** where a human player (Yellow) battles a CPU opponent (Grey). The game demonstrates the practical use of **5 Divide & Conquer algorithms** from a DAA (Design & Analysis of Algorithms) course.
 
 ### Game Configuration
 
 | Attribute | Value |
 |-----------|-------|
-| Grid Sizes | 4×4 (16 tiles), 5×5 (25 tiles), 6×6 (36 tiles) |
+| Grid Sizes | 4x4 (16 tiles), 5x5 (25 tiles), 6x6 (36 tiles) |
 | Players | Human (Yellow) vs CPU (Grey) |
-| Turn Limit | 15 turns (4×4), 25 turns (5×5, 6×6) |
+| Turn Limit | 15 turns (4x4), 25 turns (5x5, 6x6) |
 | Win Condition | All tiles one color OR highest score at turn limit |
+
+### Review 2 New Features
+- **Version Selector:** R1 (Greedy) vs R2 (D&C) vs R3 (Coming Soon)
+- **5 D&C Algorithms** for sophisticated board evaluation
+- **Threat Detection D&C** for vulnerability-aware play
+- **SOLVE button** for automated AI vs AI gameplay
 
 ---
 
 ## 🔄 2. How the Game Works — Step by Step
+
+### 2.0 Game Loop Workflow
+
+```mermaid
+graph TD
+    Start([Start]) --> PlayerTurn[Player Turn]
+    PlayerTurn --> PlayerClick[Player Click]
+    PlayerClick --> Validate{Valid Move?}
+    Validate -->|No| PlayerTurn
+    Validate -->|Yes| FlipTiles[Flip Tiles & Neighbors]
+    FlipTiles --> UpdateScore[Update Scores]
+    UpdateScore --> CheckWin{Game Over?}
+    CheckWin -->|No| CPUTurn[CPU Turn]
+    CheckWin -->|Yes| GameOver([End Game])
+    CPUTurn --> AI_Thinking[AI Thinking]
+    AI_Thinking --> AI_BestMove[Select Best Move]
+    AI_BestMove --> FlipTiles
+    
+    style Start fill:#f9f,stroke:#333,stroke-width:2px
+    style GameOver fill:#f9f,stroke:#333,stroke-width:2px
+    style Validate fill:#ffd,stroke:#333,stroke-width:2px
+    style CheckWin fill:#ffd,stroke:#333,stroke-width:2px
+```
 
 ### 2.1 Game Start
 When a game begins, the board is initialized with a random configuration:
@@ -153,29 +182,27 @@ public double getTileStrategicValue(int id) {
 
 ### CPU Decision Flow
 
-```
-  ┌──────────────────────────────────────┐
-  │       CPU's Turn: getBestMove()      │
-  └──────────────────┬───────────────────┘
-                     │
-  ┌──────────────────▼───────────────────┐
-  │  For each unlocked tile (0 to n):    │
-  │  1. Clone board                      │
-  │  2. Simulate flip                    │
-  │  3. Evaluate using COMBINED scoring  │
-  └──────────────────┬───────────────────┘
-                     │
-  ┌──────────────────▼───────────────────┐
-  │  COMBINED SCORE =                    │
-  │   Strategic Value × 40%  (tile pts)  │
-  │ + Quadrant Score  × 20%  (Spatial)   │
-  │ + Cluster Score   × 20%  (DFS)       │
-  └──────────────────┬───────────────────┘
-                     │
-  ┌──────────────────▼───────────────────┐
-  │  MERGE SORT all scored moves         │
-  │  Pick highest-scoring move           │
-  └──────────────────────────────────────┘
+```mermaid
+graph TD
+    A([CPU Turn Start]) --> B{Get Valid Moves}
+    B -->|Loop| C[Clone Board]
+    C --> D[Simulate Flip]
+    D --> E[Evaluate State]
+    E --> F{Combined Score}
+    F -- 40% --> G[Strategic]
+    F -- 2.0x --> H[Spatial D&C]
+    F -- 0.5x --> I[Cluster D&C]
+    H & I & G --> F
+    F --> J[Store Score]
+    J --> B
+    B -->|All Moves Scored| K{Selection Strategy}
+    K -->|Option A| L[Merge Sort O n log n]
+    K -->|Option B| M[Tournament Selection O n]
+    L --> N[Pick Best Move]
+    M --> N
+    N --> O([Execute Flip])
+    style A fill:#f9f,stroke:#333
+    style O fill:#9f9,stroke:#333
 ```
 
 ---
@@ -377,113 +404,160 @@ Breaking opponent clusters is more valuable than building our own.
 
 ---
 
-### 3.4 ALGORITHM 4: Minimax (Temporal D&C)
+### 3.4 ALGORITHM 4: Tournament Selection (Search Space D&C)
 
-**File:** [DACAlgorithms.java](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java) — Lines 180-304
+**File:** [DACAlgorithms.java](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java) — Lines 163-238
 
-> **Status:** Implemented but **NOT actively used**. Game uses Greedy evaluation for faster gameplay. Available via [getBestMoveMinimax()](file:///d:/DAA/src/main/java/com/flipwars/Engine.java#160-166).
+> **Status:** Implemented as an alternative move selection strategy. Available via [getBestMoveTournament()](file:///d:/DAA/src/main/java/com/flipwars/Engine.java#162-175).
 
-**What:** Looks ahead into future game states to predict opponent's best response.
+**What:** Selects the best move by running a single-elimination tournament. Pairs of moves compete, and winners advance until one champion remains.
 
-**D&C Steps:**
+**The D&C Paradigm:**
+```mermaid
+graph TD
+    subgraph DIVIDE
+    M0[0] & M1[1] & M2[2] & M3[3] & M4[4] & M5[5] & M6[6] & M7[7]
+    end
+    
+    subgraph CONQUER_Round1
+    W1[Winner 0v1]
+    W2[Winner 2v3]
+    W3[Winner 4v5]
+    W4[Winner 6v7]
+    M0 & M1 --> W1
+    M2 & M3 --> W2
+    M4 & M5 --> W3
+    M6 & M7 --> W4
+    end
+    
+    subgraph COMBINE_Round2
+    C1[Left Champ]
+    C2[Right Champ]
+    W1 & W2 --> C1
+    W3 & W4 --> C2
+    end
+    
+    subgraph CHAMPION
+    G[GRAND CHAMPION]
+    C1 & C2 --> G
+    end
+    
+    style G fill:#f96,stroke:#333,stroke-width:4px
 ```
-Depth 0 (CPU):      [Current Board]
-                   /    |    |    \
-Depth 1 (Player): [F0] [F1] [...] [F15]    ← 16 futures
-                   /|\   /|\
-Depth 2 (CPU):    ...   ...                 ← 16 responses each
 
-DIVIDE:   Branch into all possible future states
-CONQUER:  Evaluate leaf nodes
-COMBINE:  CPU picks MIN, Player picks MAX
-```
-
-**Code:**
+**Code Snippet:**
 ```java
-// DACAlgorithms.java — Lines 223-273
-private double minimaxScore(boolean[] board, int depth, boolean isMaximizing,
-        Graph graph, Rules rules, double alpha, double beta) {
-    if (depth == 0) return evaluateBoard(board, rules);  // BASE CASE
+// DACAlgorithms.java
+public int tournamentSelection(List<Integer> moves, boolean[] board, ... ) {
+    // BASE CASE: 1 move left
+    if (moves.size() == 1) return moves.get(0);
 
-    if (isMaximizing) {
-        double maxEval = Double.NEGATIVE_INFINITY;
-        for (int move = 0; move < board.length; move++) {
-            if (rules.isLocked(move)) continue;
-            boolean[] newState = board.clone();
-            simulateFlip(newState, move, graph, rules);
-            double eval = minimaxScore(newState, depth-1, false, ...);
-            maxEval = Math.max(maxEval, eval);
-            alpha = Math.max(alpha, eval);
-            if (beta <= alpha) break;  // Alpha-Beta PRUNE
-        }
-        return maxEval;
-    } else { /* symmetric for minimizing */ }
+    // DIVIDE: Split bracket into left/right halves
+    int mid = moves.size() / 2;
+    List<Integer> leftBracket  = moves.subList(0, mid);
+    List<Integer> rightBracket = moves.subList(mid, moves.size());
+
+    // CONQUER: Recursively find winners
+    int leftChamp  = tournamentSelection(leftBracket, board, ...);
+    int rightChamp = tournamentSelection(rightBracket, board, ...);
+
+    // COMBINE: Head-to-head comparison
+    return compareMoves(leftChamp, rightChamp, board, ...);
 }
 ```
 
-**Complexity:**
+**Complexity Analysis:**
 
-| Metric | Without Pruning | With Alpha-Beta |
-|--------|----------------|-----------------|
-| **Time** | O(b^d) = O(16²) = O(256) | O(b^(d/2)) ≈ O(16) best |
-| **Space** | O(d) = O(2) | O(d) = O(2) |
+| Metric | Value | Justification |
+|--------|-------|---------------|
+| **Time** | O(n) | n-1 total comparisons to find max of n items |
+| **Space** | O(log n) | Recursion depth (tree height) |
 
-**Recurrence:** [T(d) = b × T(d-1) + O(n)](file:///d:/DAA/src/main/java/com/flipwars/Main.java#441-448) → [T(d) = O(n × b^d)](file:///d:/DAA/src/main/java/com/flipwars/Main.java#441-448)
+**Recurrence Relation:**
+```
+T(n) = 2T(n/2) + O(1)
+     = O(n)
 
-**Why not used by default?** Greedy with combined D&C scoring is fast and sufficient. Minimax adds latency for marginal improvement on small boards.
+(Similar to finding Max in an array using D&C)
+```
+
+**Justification — Why Tournament Selection?**
+- **Search Space D&C:** Explicitly divides the *set of choices* rather than the board or time.
+- **Efficient:** O(n) is faster than sorting O(n log n) if we only need the BEST move, not a full ranking.
+- **Parallelizable:** Disjoint brackets could theoretically be evaluated in parallel threads.
 
 ---
 
-## ⚖️ 4. Combined Scoring Formula
+## 4. Version Comparison (R1 vs R2)
 
-```java
-// Engine.java — Lines 46-60
-FinalScore = (Strategic × 0.4) + (Quadrant × 0.2) + (Cluster × 0.2)
+### R1: Greedy Engine (Baseline)
+- **Logic:** Simple tile-value counting (corners, edges, traps)
+- **Behavior:** Grabs tiles blindly. 15% random blunder. Easily beaten.
+- **Selection:** Merge Sort to pick the top move.
+- **Formula:** `Score = sum(our_tiles) - sum(opponent_tiles)`
+
+### R2: Smart D&C Engine (Current)
+- **Logic:** Weighted heuristic of 4 D&C evaluations
+- **Behavior:** Defends weak spots, attacks clusters, avoids bait moves
+- **Selection:** Tournament Selection for O(n) efficiency
+- **Formula:**
+```
+FinalScore = (Strategic * 0.2) + (Spatial * 0.25) + (Cluster * 0.25) + (Threat * 0.3)
 ```
 
 | Component | Weight | What It Captures |
 |-----------|--------|------------------|
-| Strategic | 40% | Tile position values (corners, edges, traps) |
-| Quadrant | 20% | Regional dominance |
-| Cluster | 20% | Territory connectivity |
+| Strategic | 20% | Tile position values (corners, edges, traps) |
+| Quadrant (Spatial D&C) | 25% | Regional dominance |
+| Cluster (DFS D&C) | 25% | Territory connectivity |
+| Threat (Threat D&C) | 30% | Vulnerability / exposed tiles |
 
 ---
 
-## 📊 5. Complete Complexity Summary
+## 5. Complete Complexity Summary
 
 | Algorithm | Time | Space | Recurrence |
 |-----------|------|-------|------------|
 | Merge Sort | O(n log n) | O(n) | T(n) = 2T(n/2) + O(n) |
 | Spatial D&C | O(n) | O(1) | T(n) = 4T(n/4) + O(1) |
 | DFS Clusters | O(V+E) = O(n) | O(n) | T(V,E) = O(V+E) |
-| Minimax | O(b^d) | O(d) | T(d) = bT(d-1) + O(n) |
+| Tournament | O(n) | O(log n) | T(n) = 2T(n/2) + O(1) |
+| Threat Detection | O(n) | O(1) | T(n) = 4T(n/4) + O(1) |
 | Tabu Lookup | O(1) | O(k) | — |
 
 **Total per CPU move:** O(n²) + O(n log n) ≈ O(n²) where n = 16/25/36 tiles — effectively instant.
 
 ---
 
-## 🏗️ 6. Architecture
+## 6. Architecture
 
 ```
-Main.java ─────────► Engine.java ──────► DACAlgorithms.java
-(UI + Game Loop)     (AI + Merge Sort)   (Spatial + DFS + Minimax)
-      │                    │
-      └──────┬─────────────┘
-             ▼
-        Rules.java ◄────────── Graph.java
+Main.java ----------> Engine.java ------> DACAlgorithms.java
+(UI + Game Loop       (AI Logic:           (4 D&C Algorithms:
+ + Version Selector)   R1 Greedy +           Spatial + DFS +
+                       R2 D&C +              Tournament + Threat)
+                       Merge Sort)
+      |                    |
+      +--------+-----------+
+               v
+        Rules.java <---------- Graph.java
       (Tabu + Scoring)        (Adjacency Lists)
 ```
 
 ---
 
-## ✅ 7. Conclusion
+## 7. Conclusion
 
-| # | Algorithm | D&C Type | What It Divides |
-|---|-----------|----------|-----------------|
-| 1 | **Merge Sort** | Search Space | List of scored moves |
-| 2 | **Spatial D&C** | Spatial | Physical board → quadrants |
-| 3 | **DFS Clusters** | Structural | Board → connected components |
-| 4 | **Minimax** | Temporal | Future game states → branches |
+| # | Algorithm | D&C Type | What It Divides | Used For |
+|---|-----------|----------|-----------------|----------|
+| 1 | **Merge Sort** | Search Space | List of scored moves | Player Hints (R1 + R2) |
+| 2 | **Spatial D&C** | Spatial | Physical board -> quadrants | Board scoring (25%) |
+| 3 | **DFS Clusters** | Structural | Board -> connected components | Board scoring (25%) |
+| 4 | **Tournament Selection** | Search Space | Moves list -> Brackets | CPU move selection |
+| 5 | **Threat Detection** | Scoring/Spatial | Board -> quadrant threats | Board scoring (30%) |
 
-**Key Takeaway:** Combining multiple D&C strategies creates a more robust AI than any single algorithm alone.
+**Key Takeaway:** Combining multiple D&C strategies creates a more robust AI than any single algorithm alone. The Version Selector demonstrates clear improvement from R1 (Greedy) to R2 (D&C).
+
+### Future Roadmap (Review 3)
+- **Backtracking / Minimax:** Depth-3 lookahead for multi-turn planning
+- **Dynamic Programming:** Transposition table for board state caching

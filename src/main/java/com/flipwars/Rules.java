@@ -1,12 +1,32 @@
 package com.flipwars;
 
 import java.awt.Color;
-import java.util.LinkedHashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 
 /**
- * Tabu Search & Strategic Weighting.
- * Uses LinkedHashSet for O(1) lookup instead of O(n) LinkedList.
+ * Game Rules Engine — Tabu Search & Strategic Weighting.
+ * <p>
+ * Manages the lock/tabu mechanic and assigns strategic values to tiles.
+ * Uses {@link LinkedHashSet} for O(1) lookup instead of O(n) with LinkedList.
+ * </p>
+ *
+ * <h2>Lock Mechanic (Tabu Search):</h2>
+ * <ul>
+ *   <li>After a tile is clicked, it gets locked for several turns</li>
+ *   <li>Prevents infinite flip loops and adds strategic depth</li>
+ *   <li>Tabu size scales with grid: max(2, gridSize^2 / 4)</li>
+ * </ul>
+ *
+ * <h2>Strategic Tile Values:</h2>
+ * <ul>
+ *   <li>Corners: +25 (most valuable)</li>
+ *   <li>Edges: +15</li>
+ *   <li>Standard: +5</li>
+ *   <li>Near-Corners (Traps): -5 (dangerous positions)</li>
+ * </ul>
+ *
+ * @see Engine
  */
 public class Rules {
     private final int tabuSize;

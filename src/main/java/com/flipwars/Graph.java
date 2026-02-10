@@ -3,7 +3,22 @@ package com.flipwars;
 import java.util.*;
 
 /**
- * Concept: Graph Representation & Adjacency Lists.
+ * Graph Representation using Adjacency Lists.
+ * <p>
+ * Models the game board as a graph where each tile is a vertex and edges
+ * connect orthogonally adjacent tiles (up, down, left, right + self).
+ * Neighbors are precomputed at construction for O(1) lookup during gameplay.
+ * </p>
+ *
+ * <h2>Why a Graph?</h2>
+ * <ul>
+ *   <li>Flip mechanic requires knowing neighbors instantly</li>
+ *   <li>DFS Cluster analysis traverses the adjacency structure</li>
+ *   <li>Precomputation avoids repeated neighbor calculation</li>
+ * </ul>
+ *
+ * @see Engine
+ * @see DACAlgorithms
  */
 public class Graph {
     private final int gridSize;

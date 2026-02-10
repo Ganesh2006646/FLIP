@@ -1,11 +1,24 @@
 package com.flipwars;
 
-import javax.swing.*;
 import java.awt.*;
 import java.util.*;
+import javax.swing.*;
 
 /**
  * Main Entry Point and View Manager (UI).
+ * <p>
+ * Handles the Swing GUI, user interactions, and game loop orchestration.
+ * Supports runtime switching between algorithm versions (R1 Greedy vs R2 D&C)
+ * to demonstrate improvement across review milestones.
+ * </p>
+ *
+ * <h2>Review 2 Features:</h2>
+ * <ul>
+ *   <li>Version Selector: R1 (Greedy) vs R2 (D&C) vs R3 (Coming Soon)</li>
+ *   <li>SOLVE button for automated AI vs AI gameplay</li>
+ *   <li>Visual feedback for hints and CPU moves</li>
+ *   <li>5 D&C algorithms powering the R2 engine</li>
+ * </ul>
  */
 public class Main extends JFrame {
 
@@ -32,6 +45,11 @@ public class Main extends JFrame {
     private boolean isGameOver = false;
     private boolean isAutoMode = false;
     private int turnsPlayed = 0;
+
+    /** Selected algorithm version: 1=R1 Greedy, 2=R2 D&C */
+    private int selectedVersion = 2;
+    /** Timer for auto-solve mode */
+    private javax.swing.Timer autoPlayTimer;
 
     private CardLayout cardLayout = new CardLayout();
     private JPanel mainPanel = new JPanel(cardLayout);
@@ -74,6 +92,10 @@ public class Main extends JFrame {
         isPlayerTurn = true;
         inputBlocked = false;
         isAutoMode = false;
+        if (autoPlayTimer != null && autoPlayTimer.isRunning()) autoPlayTimer.stop();
+
+        // Set the AI version based on user selection
+        ai.setVersion(selectedVersion);
 
         Random rand = new Random();
         int initialMoves = 4 + rand.nextInt(3);
@@ -249,7 +271,7 @@ public class Main extends JFrame {
 
         JPanel sizePanel = new JPanel();
         sizePanel.setBackground(COLOR_BG);
-        JLabel sizeLabel = createLbl("Select Grid Size: ", 18, Color.WHITE);
+        JLabel sizeLabel = createLbl("Grid Size: ", 18, Color.WHITE);
         Integer[] sizes = { 4, 5, 6 };
         JComboBox<Integer> sizeCombo = new JComboBox<>(sizes);
         sizeCombo.setSelectedItem(gridSize);
@@ -258,8 +280,29 @@ public class Main extends JFrame {
             int selected = (int) sizeCombo.getSelectedItem();
             initializeLogic(selected);
         });
+
+        // Version Selector: R1 (Greedy) vs R2 (D&C) vs R3 (Coming Soon)
+        JLabel verLabel = createLbl("  Version: ", 18, Color.WHITE);
+        String[] versions = { "R1: Greedy", "R2: D&C", "R3: Backtracking" };
+        JComboBox<String> verCombo = new JComboBox<>(versions);
+        verCombo.setSelectedIndex(selectedVersion - 1);
+        verCombo.setFont(new Font("Arial", Font.BOLD, 16));
+        verCombo.addActionListener(e -> {
+            int idx = verCombo.getSelectedIndex();
+            if (idx == 2) {
+                JOptionPane.showMessageDialog(this,
+                        "Coming Soon for Review 3!",
+                        "Under Construction", JOptionPane.INFORMATION_MESSAGE);
+                verCombo.setSelectedIndex(selectedVersion - 1);
+            } else {
+                selectedVersion = idx + 1;
+            }
+        });
+
         sizePanel.add(sizeLabel);
         sizePanel.add(sizeCombo);
+        sizePanel.add(verLabel);
+        sizePanel.add(verCombo);
 
         p.add(Box.createVerticalGlue());
         p.add(title);
@@ -307,7 +350,7 @@ public class Main extends JFrame {
         bot.setBackground(COLOR_BG);
         JButton bh = createBtn("Get Hint");
         bh.addActionListener(e -> {
-            // Hint uses Greedy with combined D&C evaluation (no backtracking)
+            // Hint uses version-appropriate logic (R1: Greedy, R2: D&C Merge Sort)
             int hint = ai.getPlayerHint(gridState);
             if (hint != -1)
                 tileButtons[hint].setBorder(BorderFactory.createLineBorder(COLOR_HINT, 4));
@@ -315,13 +358,30 @@ public class Main extends JFrame {
 
         JButton bs = createBtn("SOLVE");
         bs.addActionListener(e -> {
-            if (isGameOver)
-                return;
+            if (isGameOver) return;
             isAutoMode = !isAutoMode;
             bs.setText(isAutoMode ? "STOP" : "SOLVE");
             bs.setBackground(isAutoMode ? Color.RED : COLOR_ACCENT);
-            if (isAutoMode && isPlayerTurn && !inputBlocked) {
-                triggerAutoMove();
+            if (isAutoMode) {
+                statusLabel.setText("Auto-Solving... (" + (ai.getVersion() == 1 ? "R1 Greedy" : "R2 D&C") + ")");
+                if (autoPlayTimer == null) {
+                    autoPlayTimer = new javax.swing.Timer(600, evt -> {
+                        if (isGameOver || !isAutoMode) {
+                            isAutoMode = false;
+                            if (autoPlayTimer != null) autoPlayTimer.stop();
+                            bs.setText("SOLVE");
+                            bs.setBackground(COLOR_ACCENT);
+                            return;
+                        }
+                        if (isPlayerTurn && !inputBlocked) {
+                            triggerAutoMove();
+                        }
+                    });
+                }
+                autoPlayTimer.start();
+                if (isPlayerTurn && !inputBlocked) triggerAutoMove();
+            } else {
+                if (autoPlayTimer != null) autoPlayTimer.stop();
             }
         });
 
@@ -359,34 +419,50 @@ public class Main extends JFrame {
                         "   neighbors in a PLUS (+) pattern.\n\n" +
                         "3. LOCK MECHANIC: Tiles are LOCKED after being clicked. Check the\n" +
                         "   'WAIT' countdown to see when they unlock.\n\n" +
-                        "=== 4 DIVIDE & CONQUER ALGORITHMS ===\n\n" +
+                        "=== VERSION SELECTOR ===\n\n" +
+                        "R1 (GREEDY): Basic AI from Review 1. Uses simple tile counting\n" +
+                        "   with 15% random blunder. Easy to beat.\n\n" +
+                        "R2 (DIVIDE & CONQUER): Smart AI from Review 2. Uses 5 D&C\n" +
+                        "   algorithms for sophisticated board evaluation.\n\n" +
+                        "R3 (BACKTRACKING): Coming Soon for Review 3!\n\n" +
+                        "=== 5 DIVIDE & CONQUER ALGORITHMS (R2) ===\n\n" +
                         "1. MERGE SORT (Search Space D&C) - O(n log n)\n" +
-                        "   • Ranks all possible moves by score\n" +
-                        "   • Divide: Split moves into halves\n" +
-                        "   • Conquer: Sort each half recursively\n" +
-                        "   • Combine: Merge sorted halves\n\n" +
+                        "   * Ranks all possible moves by score\n" +
+                        "   * Divide: Split moves into halves\n" +
+                        "   * Conquer: Sort each half recursively\n" +
+                        "   * Combine: Merge sorted halves\n" +
+                        "   * Used for: Player Hints\n\n" +
                         "2. SPATIAL D&C (Quadrant Evaluation) - O(n)\n" +
-                        "   • Evaluates regional control\n" +
-                        "   • Divide: Split grid into 4 quadrants\n" +
-                        "   • Conquer: Score each quadrant\n" +
-                        "   • Combine: Weight corners 2.0x, edges 1.5x\n\n" +
-                        "3. DFS CLUSTERS (Structural D&C) - O(n)\n" +
-                        "   • Finds connected tile groups\n" +
-                        "   • Divide: Separate into components via DFS\n" +
-                        "   • Conquer: Score each island = size^2\n" +
-                        "   • Combine: Sum top 3 largest clusters\n\n" +
+                        "   * Evaluates regional control\n" +
+                        "   * Divide: Split grid into 4 quadrants\n" +
+                        "   * Conquer: Score each quadrant\n" +
+                        "   * Combine: Weight corners 2.0x, edges 1.5x\n" +
+                        "   * Used for: Board scoring (25% weight)\n\n" +
+                        "3. DFS CLUSTERS (Structural D&C) - O(V+E)\n" +
+                        "   * Finds connected tile groups\n" +
+                        "   * Divide: Separate into components via DFS\n" +
+                        "   * Conquer: Score each island = size^2\n" +
+                        "   * Combine: Sum top 3 largest clusters\n" +
+                        "   * Used for: Board scoring (25% weight)\n\n" +
                         "4. TOURNAMENT SELECTION (Search Space D&C) - O(n)\n" +
-                        "   • Selects best move via knockout tournament\n" +
-                        "   • Divide: Split moves into brackets\n" +
-                        "   • Conquer: Find winner of each bracket\n" +
-                        "   • Combine: Champions face off for title\n\n" +
+                        "   * Selects best move via knockout tournament\n" +
+                        "   * Divide: Split moves into brackets\n" +
+                        "   * Conquer: Find winner of each bracket\n" +
+                        "   * Combine: Champions face off for title\n" +
+                        "   * Used for: CPU Move Selection\n\n" +
+                        "5. THREAT DETECTION (Scoring D&C) - O(n)\n" +
+                        "   * Identifies vulnerable/exposed tiles\n" +
+                        "   * Divide: Split grid into 4 quadrants\n" +
+                        "   * Conquer: Count enemy neighbors per tile\n" +
+                        "   * Combine: Weight corner quadrants 2.0x\n" +
+                        "   * Used for: Board scoring (30% weight)\n\n" +
                         "=== SCORING VALUES ===\n" +
                         "Corners: +25 | Edges: +15 | Standard: +5 | Traps: -5\n\n" +
                         "=== WINNING STRATEGIES ===\n" +
-                        "• Secure corners early - they're worth the most!\n" +
-                        "• Build large connected clusters for territory control\n" +
-                        "• Avoid trap tiles near corners (-5 points)\n" +
-                        "• Plan around locked tiles for surprise moves");
+                        "* Secure corners early - they're worth the most!\n" +
+                        "* Build large connected clusters for territory control\n" +
+                        "* Avoid trap tiles near corners (-5 points)\n" +
+                        "* Plan around locked tiles for surprise moves");
 
         JScrollPane scroll = new JScrollPane(t);
         scroll.setBorder(null);
@@ -447,7 +523,18 @@ public class Main extends JFrame {
     }
 
     private double calculateWeightedScore(boolean isYellow) {
-        // 1. Strategic Score (Tile Values) - 40%
+        if (ai.getVersion() == 1) {
+            // R1: Simple tile value counting
+            double score = 0;
+            for (int i = 0; i < totalTiles; i++) {
+                if (gridState[i] == isYellow) {
+                    score += rules.getTileStrategicValue(i);
+                }
+            }
+            return score;
+        }
+
+        // R2: D&C weighted scoring
         double strategic = 0;
         for (int i = 0; i < totalTiles; i++) {
             if (gridState[i] == isYellow) {
@@ -455,25 +542,12 @@ public class Main extends JFrame {
             }
         }
 
-        // 2. Quadrant Score (Spatial D&C) - 20%
-        // reuse the existing dac instance from Engine which we don't have access to
-        // directly here
-        // so we create a temp instance or better yet, make AI expose it?
-        // Let's use a fresh DACAlgorithms instance since it is stateless for these
-        // methods
         DACAlgorithms dac = new DACAlgorithms();
         double quadrant = dac.evaluateQuadrants(gridState, gridSize, isYellow);
-
-        // 3. Cluster Score (Structural D&C) - 20%
-        // Note: For display, we just show raw cluster strength, not the relative
-        // difference
         double cluster = dac.evaluateClusters(gridState, gridSize, isYellow);
+        double threat = dac.evaluateThreats(gridState, gridSize, isYellow);
 
-        // Weighted Sum (matches Engine.java logic)
-        // Strategic: 40% (Base influence)
-        // Quadrant: 2.0x (High reward for regional control)
-        // Cluster: 0.5x (Moderate reward for connectivity)
-        return (strategic * 0.4) + (quadrant * 2.0) + (cluster * 0.5);
+        return (strategic * 0.2) + (quadrant * 0.25) + (cluster * 0.25) + (threat * 0.3);
     }
 
     private void celebrate(boolean human) {
