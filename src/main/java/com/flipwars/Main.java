@@ -143,10 +143,10 @@ public class Main extends JFrame {
             } catch (Exception ignored) {
             }
 
-            // CPU uses Minimax (Temporal D&C) for look-ahead
-            int move = ai.getBestMoveMinimax(gridState);
+            // CPU uses Greedy with combined D&C evaluation (no backtracking)
+            int move = ai.getBestMove(gridState);
             if (move == -1)
-                move = ai.getBestMove(gridState); // Fallback to greedy
+                move = 0; // Fallback to first tile
 
             int finalMove = move;
             SwingUtilities.invokeLater(() -> {
@@ -173,10 +173,8 @@ public class Main extends JFrame {
         if (!isPlayerTurn || isGameOver || inputBlocked)
             return;
 
-        // SOLVE uses Minimax for optimal player moves
-        int move = ai.getPlayerHintMinimax(gridState);
-        if (move == -1)
-            move = ai.getPlayerHint(gridState); // Fallback
+        // SOLVE uses Greedy with combined D&C evaluation (no backtracking)
+        int move = ai.getPlayerHint(gridState);
         if (move != -1) {
             handlePlayerMove(move);
         }
@@ -309,10 +307,8 @@ public class Main extends JFrame {
         bot.setBackground(COLOR_BG);
         JButton bh = createBtn("Get Hint");
         bh.addActionListener(e -> {
-            // Hint uses Minimax for best suggestion
-            int hint = ai.getPlayerHintMinimax(gridState);
-            if (hint == -1)
-                hint = ai.getPlayerHint(gridState); // Fallback
+            // Hint uses Greedy with combined D&C evaluation (no backtracking)
+            int hint = ai.getPlayerHint(gridState);
             if (hint != -1)
                 tileButtons[hint].setBorder(BorderFactory.createLineBorder(COLOR_HINT, 4));
         });

@@ -1,287 +1,489 @@
-# Flip Wars - Complete Game Analysis
+# Flip Wars — Complete Game & Algorithm Analysis
 
-## 📋 Project Overview
+## 📋 1. What Is Flip Wars?
 
-**Flip Wars** is a strategic tile-flipping game that demonstrates **Divide & Conquer (D&C)** algorithms for a DAA (Design & Analysis of Algorithms) course project.
+Flip Wars is a **two-player strategic tile-flipping board game** where a human player (Yellow) battles a CPU opponent (Grey). The game demonstrates the practical use of **4 Divide & Conquer algorithms** from a DAA (Design & Analysis of Algorithms) course.
+
+### Game Configuration
 
 | Attribute | Value |
 |-----------|-------|
-| Grid Sizes | 4×4, 5×5, 6×6 |
+| Grid Sizes | 4×4 (16 tiles), 5×5 (25 tiles), 6×6 (36 tiles) |
 | Players | Human (Yellow) vs CPU (Grey) |
-| Win Condition | Conquer all tiles OR highest score at turn limit |
-| Turn Limit | 15 (4×4) or 25 (5×5, 6×6) |
+| Turn Limit | 15 turns (4×4), 25 turns (5×5, 6×6) |
+| Win Condition | All tiles one color OR highest score at turn limit |
 
 ---
 
-## 🔄 Game Workflow
+## 🔄 2. How the Game Works — Step by Step
 
-```mermaid
-flowchart TD
-    A[Game Start] --> B[Random Initial Setup]
-    B --> C[Player Turn]
-    C --> D{Click Tile}
-    D -->|Locked| E[Show Error]
-    E --> C
-    D -->|Valid| F[Flip + Pattern]
-    F --> G[Lock Tile in Tabu List]
-    G --> H{Check Win?}
-    H -->|Yes| I[Game Over]
-    H -->|No| J[CPU Turn]
-    J --> K[AI Evaluates All Moves]
-    K --> L[Merge Sort Ranks Moves]
-    L --> M[Execute Best Move]
-    M --> N{Check Win?}
-    N -->|Yes| I
-    N -->|No| C
+### 2.1 Game Start
+When a game begins, the board is initialized with a random configuration:
+```java
+// Main.java — Lines 78-84
+Random rand = new Random();
+int initialMoves = 4 + rand.nextInt(3);  // 4-6 random flips
+for (int i = 0; i < initialMoves; i++) {
+    performFlip(rand.nextInt(totalTiles));
+}
+rules.clearMemory();  // Clear locks so no tiles start locked
 ```
+**Why?** A random start ensures each game is unique and prevents memorized strategies.
 
 ---
 
-## 🧠 Algorithms Used
+### 2.2 Flip Mechanic (The Core Action)
 
-### 1. Merge Sort (Search Space D&C)
+When any tile is clicked, it flips **itself AND all 4 orthogonal neighbors** in a **plus (+) pattern**:
 
-| Property | Value |
-|----------|-------|
-| **Location** | [Engine.java#L44-L70](file:///d:/DAA/src/main/java/com/flipwars/Engine.java#L44-L70) |
-| **Time Complexity** | O(n log n) |
-| **Space Complexity** | O(n) |
-
-**How It Works:**
 ```
-DIVIDE:   [8,3,5,1,9,2,7,4] → [8,3,5,1] + [9,2,7,4]
-          [8,3,5,1] → [8,3] + [5,1]
-          ...until single elements
-
-CONQUER:  Compare pairs: 8>3, 5>1, 9>2, 7>4
-
-COMBINE:  Merge sorted halves: [8,5,3,1] + [9,7,4,2] → [9,8,7,5,4,3,2,1]
+Before Click (tile 5):        After Click:
+┌───┬───┬───┬───┐            ┌───┬───┬───┬───┐
+│ . │ ▓ │ . │ . │            │ . │ ░ │ . │ . │  ← tile 1 flipped
+├───┼───┼───┼───┤            ├───┼───┼───┼───┤
+│ ▓ │[▓]│ ▓ │ . │            │ ░ │[░]│ ░ │ . │  ← tiles 4,5,6 flipped
+├───┼───┼───┼───┤            ├───┼───┼───┼───┤
+│ . │ ▓ │ . │ . │            │ . │ ░ │ . │ . │  ← tile 9 flipped
+├───┼───┼───┼───┤            ├───┼───┼───┼───┤
+│ . │ . │ . │ . │            │ . │ . │ . │ . │
+└───┴───┴───┴───┘            └───┴───┴───┴───┘
 ```
 
-**Why Used:**
-- Evaluates 16 possible moves, needs efficient sorting
-- Stable sort guarantees consistent results
-- O(n log n) is optimal for comparison-based sorting
+**Code — Graph adjacency list precomputes neighbors:**
+```java
+// Graph.java — Lines 17-33
+private void initializeGraph() {
+    for (int r = 0; r < gridSize; r++) {
+        for (int c = 0; c < gridSize; c++) {
+            int id = r * gridSize + c;
+            List<Integer> neighbors = new ArrayList<>();
+            neighbors.add(id);           // Always flip self
+            addIfValid(neighbors, r-1, c); // Up
+            addIfValid(neighbors, r+1, c); // Down
+            addIfValid(neighbors, r, c-1); // Left
+            addIfValid(neighbors, r, c+1); // Right
+            adjacencyList.put(id, neighbors);
+        }
+    }
+}
+```
+
+**Why a Graph?** Neighbors are precomputed once at construction and looked up in **O(1)** during gameplay. Without this, we'd recompute neighbors on every flip.
 
 ---
 
-### 2. Spatial D&C (Quadrant Evaluation)
+### 2.3 Lock Mechanic (Tabu Search)
 
-| Property | Value |
-|----------|-------|
-| **Location** | [DACAlgorithms.java#L17-L66](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java#L17-L66) |
-| **Time Complexity** | O(n) where n = grid size² |
-| **Space Complexity** | O(1) |
+After a tile is clicked, it gets **LOCKED** for several turns. This prevents infinite flip loops and adds strategic depth.
 
-**How It Works:**
 ```
-┌─────┬─────┐
-│ TL  │ TR  │  DIVIDE: Split grid into 4 quadrants
-├─────┼─────┤  
-│ BL  │ BR  │  CONQUER: Score each quadrant = (Grey - Yellow)
-└─────┴─────┘  
-                COMBINE: Total = 1.5×(TL + TR + BL + BR)
-```
-
-**Why Used:**
-- Captures positional strategy (corner quadrants matter more)
-- Simple recursive subdivision of 2D space
-- Demonstrates geometric D&C concept
-
----
-
-### 3. DFS Clusters (Structural D&C)
-
-| Property | Value |
-|----------|-------|
-| **Location** | [DACAlgorithms.java#L68-L146](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java#L68-L146) |
-| **Time Complexity** | O(n) where n = tiles |
-| **Space Complexity** | O(n) for visited array + recursion stack |
-
-**How It Works:**
-```
-Grid:           Clusters Found:
-█░░█            Island1(size=2): ██
-█░█░    DFS→    Island2(size=2): █░
-░░█░                              █
-░░░█            Island3(size=1): █
-
-DIVIDE:   Split into connected components via DFS
-CONQUER:  Score each island = size²
-COMBINE:  Sum top 3 largest clusters
-```
-
-**Why Used:**
-- Connected tiles = stronger position
-- Large clusters are hard for opponent to break
-- Models "territory control" strategy
-
----
-
-### 4. Minimax (Temporal D&C)
-
-| Property | Value |
-|----------|-------|
-| **Location** | [DACAlgorithms.java#L148-L256](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java#L148-L256) |
-| **Time Complexity** | O(b^d) where b=16 moves, d=depth |
-| **Space Complexity** | O(d) recursion depth |
-
-**How It Works:**
-```
-Depth 0 (CPU):     [Current State]
-                  /    |    |    \
-Depth 1 (Player): [F0] [F1] [...] [F15]  ← 16 futures
-                  /|\   /|\
-Depth 2 (CPU):   ...   ...        ← Responses
-
-DIVIDE:   Branch into all possible future states
-CONQUER:  Evaluate leaf nodes
-COMBINE:  Maximizing player picks MAX, minimizing picks MIN
-```
-
-**Why Used:**
-- Looks ahead to predict opponent's response
-- Alpha-Beta pruning cuts branches (O(b^(d/2)) best case)
-- Classic game theory algorithm
-
----
-
-### 5. Tabu Search (Memory/Locking)
-
-| Property | Value |
-|----------|-------|
-| **Location** | [Rules.java#L9-L43](file:///d:/DAA/src/main/java/com/flipwars/Rules.java#L9-L43) |
-| **Time Complexity** | O(k) where k = tabu size |
-| **Space Complexity** | O(k) |
-
-**How It Works:**
-```
-Move History: [3, 7, 12, 5]  ← FIFO queue
-              ↑              ↑
-           Oldest         Newest
-           (unlocks       (locked)
-            soon)
+Move History (FIFO):  [3, 7, 12, 5]
+                       ↑              ↑
+                    Oldest         Newest
+                   (unlocks       (locked)
+                    soon)
 
 When move 9 is played:
 [3, 7, 12, 5] → [7, 12, 5, 9]
-  ↑ removed
+  ↑ removed (unlocked!)
 ```
 
-**Why Used:**
-- Prevents infinite flip loops
-- Adds strategic depth (plan around locks)
-- Memory-efficient FIFO implementation
+**Code — LinkedHashSet for O(1) lookup:**
+```java
+// Rules.java — Lines 11-41
+private final LinkedHashSet<Integer> tabuSet = new LinkedHashSet<>();
+
+public void recordMove(int tileId) {
+    tabuSet.remove(tileId);    // Remove if exists
+    tabuSet.add(tileId);       // Add as most recent
+    if (tabuSet.size() > tabuSize) {
+        Iterator<Integer> it = tabuSet.iterator();
+        it.next();
+        it.remove();           // Remove oldest (FIFO)
+    }
+}
+
+public boolean isLocked(int tileId) {
+    return tabuSet.contains(tileId); // O(1)!
+}
+```
+
+**Why LinkedHashSet over LinkedList?**
+
+| Data Structure | `contains()` | [add()](file:///d:/DAA/src/main/java/com/flipwars/Graph.java#36-41) | `remove oldest` |
+|---------------|-------------|---------|-----------------|
+| LinkedList | O(n) ❌ | O(1) | O(1) |
+| HashSet | O(1) ✅ | O(1) | No ordering! ❌ |
+| **LinkedHashSet** | **O(1) ✅** | **O(1)** | **O(1) via iterator ✅** |
 
 ---
 
-## ⚖️ Combined Scoring Formula
+### 2.4 Strategic Tile Scoring
 
-```java
-FinalScore = (Strategic × 0.4) + (Quadrant × 0.2) + (Cluster × 0.2)
-// Note: Minimax is available separately via getBestMoveMinimax()
+Not all tiles are equal — the scoring system creates strategic depth:
+
+```
+┌──────┬──────┬──────┬──────┐
+│ +25  │ +15  │ +15  │ +25  │   Corners: 25 points (hardest to flip back)
+├──────┼──────┼──────┼──────┤   Edges:   15 points (stable positions)
+│ +15  │  -5  │  -5  │ +15  │   Standard: 5 points (interior)
+├──────┼──────┼──────┼──────┤   Traps:   -5 points (exposes corners!)
+│ +15  │  -5  │  -5  │ +15  │
+├──────┼──────┼──────┼──────┤
+│ +25  │ +15  │ +15  │ +25  │
+└──────┴──────┴──────┴──────┘
 ```
 
-| Component | Weight | What It Measures |
+```java
+// Rules.java — Lines 60-77
+public double getTileStrategicValue(int id) {
+    int r = id / gridSize, c = id % gridSize;
+    if ((r == 0 || r == gridSize-1) && (c == 0 || c == gridSize-1)) return 25.0;  // Corners
+    if (r == 0 || r == gridSize-1 || c == 0 || c == gridSize-1)     return 15.0;  // Edges
+    if ((r <= 1 || r >= gridSize-2) && (c <= 1 || c >= gridSize-2)) return -5.0;  // Traps
+    return 5.0;  // Standard
+}
+```
+
+**Why negative trap tiles?** Tiles adjacent to corners are dangerous — flipping them also flips the high-value corner, giving it to the opponent.
+
+---
+
+## 🧠 3. The 4 Divide & Conquer Algorithms
+
+### CPU Decision Flow
+
+```
+  ┌──────────────────────────────────────┐
+  │       CPU's Turn: getBestMove()      │
+  └──────────────────┬───────────────────┘
+                     │
+  ┌──────────────────▼───────────────────┐
+  │  For each unlocked tile (0 to n):    │
+  │  1. Clone board                      │
+  │  2. Simulate flip                    │
+  │  3. Evaluate using COMBINED scoring  │
+  └──────────────────┬───────────────────┘
+                     │
+  ┌──────────────────▼───────────────────┐
+  │  COMBINED SCORE =                    │
+  │   Strategic Value × 40%  (tile pts)  │
+  │ + Quadrant Score  × 20%  (Spatial)   │
+  │ + Cluster Score   × 20%  (DFS)       │
+  └──────────────────┬───────────────────┘
+                     │
+  ┌──────────────────▼───────────────────┐
+  │  MERGE SORT all scored moves         │
+  │  Pick highest-scoring move           │
+  └──────────────────────────────────────┘
+```
+
+---
+
+### 3.1 ALGORITHM 1: Merge Sort (Search Space D&C)
+
+**File:** [Engine.java](file:///d:/DAA/src/main/java/com/flipwars/Engine.java) — Lines 91-127
+
+**What:** Ranks all possible moves from best to worst score.
+
+**D&C Steps:**
+```
+DIVIDE:   [85, 120, 45, 200, 30, 175, 90, 60]
+                     ↓
+          [85, 120, 45, 200] | [30, 175, 90, 60]
+                     ↓
+          [85,120] [45,200] | [30,175] [90,60]
+                     ↓
+          [85][120][45][200] | [30][175][90][60]
+
+CONQUER:  Single elements are trivially sorted
+
+COMBINE:  Merge in DESCENDING order
+          [120,85] [200,45] | [175,30] [90,60]
+                     ↓
+          [200, 175, 120, 90, 85, 60, 45, 30]
+          Best move ↑
+```
+
+**Code:**
+```java
+// Engine.java — Lines 92-127
+private void mergeSort(List<int[]> list, int left, int right) {
+    if (left < right) {
+        int mid = (left + right) / 2;
+        mergeSort(list, left, mid);       // DIVIDE: left half
+        mergeSort(list, mid + 1, right);  // DIVIDE: right half
+        merge(list, left, mid, right);    // COMBINE
+    }
+}
+
+private void merge(List<int[]> list, int left, int mid, int right) {
+    List<int[]> temp = new ArrayList<>();
+    int i = left, j = mid + 1;
+    while (i <= mid && j <= right) {
+        if (list.get(i)[1] >= list.get(j)[1])
+            temp.add(list.get(i++));
+        else
+            temp.add(list.get(j++));
+    }
+    while (i <= mid) temp.add(list.get(i++));
+    while (j <= right) temp.add(list.get(j++));
+    for (int k = 0; k < temp.size(); k++)
+        list.set(left + k, temp.get(k));
+}
+```
+
+**Complexity:**
+
+| Metric | Value | Justification |
+|--------|-------|---------------|
+| **Time** | O(n log n) | Always splits in half, no degenerate cases |
+| **Space** | O(n) | Temporary `temp` list during merge |
+
+**Recurrence:**
+```
+T(n) = 2T(n/2) + O(n)
+Master Theorem (Case 2): a=2, b=2, f(n)=n → T(n) = Θ(n log n)
+```
+
+**Why Merge Sort over QuickSort?**
+- Guaranteed O(n log n) — no O(n²) worst case
+- Stable sort — equal scores keep original order
+- Clean recursive structure demonstrates D&C clearly
+
+---
+
+### 3.2 ALGORITHM 2: Spatial D&C (Quadrant Evaluation)
+
+**File:** [DACAlgorithms.java](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java) — Lines 31-74
+
+**What:** Divides the board into 4 quadrants to evaluate regional control.
+
+**D&C Steps:**
+```
+┌──────────┬──────────┐
+│ TL (2.0×)│ TR (1.5×)│     DIVIDE:  Split into 4 sub-grids
+│ Score: +2│ Score: -1│     CONQUER: Score = (our tiles) - (their tiles)
+├──────────┼──────────┤     COMBINE: Weighted sum
+│ BL (1.5×)│ BR (2.0×)│       Corner weight = 2.0× (TL, BR have corners)
+│ Score: 0 │ Score: +3│       Edge weight   = 1.5× (TR, BL are edges)
+└──────────┴──────────┘
+Total = (2×2.0) + (-1×1.5) + (0×1.5) + (3×2.0) = 4 - 1.5 + 0 + 6 = 8.5
+```
+
+**Code:**
+```java
+// DACAlgorithms.java — Lines 31-48
+public double evaluateQuadrants(boolean[] board, int gridSize, boolean forPlayer) {
+    int half = gridSize / 2;
+    double topLeft     = evaluateSubGrid(board, 0, 0, half, gridSize, forPlayer);
+    double topRight    = evaluateSubGrid(board, 0, half, gridSize-half, gridSize, forPlayer);
+    double bottomLeft  = evaluateSubGrid(board, half, 0, gridSize-half, gridSize, forPlayer);
+    double bottomRight = evaluateSubGrid(board, half, half, gridSize-half, gridSize, forPlayer);
+
+    double cornerWeight = 2.0;  // TL, BR contain board corners
+    double edgeWeight   = 1.5;  // TR, BL are edge-adjacent
+    return (topLeft * cornerWeight) + (topRight * edgeWeight)
+         + (bottomLeft * edgeWeight) + (bottomRight * cornerWeight);
+}
+```
+
+**Complexity:**
+
+| Metric | Value | Justification |
+|--------|-------|---------------|
+| **Time** | O(n) | Each tile visited exactly once across 4 quadrants |
+| **Space** | O(1) | Only scalar accumulators |
+
+**Recurrence:** [T(n) = 4×T(n/4) + O(1) = O(n)](file:///d:/DAA/src/main/java/com/flipwars/Main.java#441-448)
+
+**Why different weights?** Corner quadrants contain +25 corner tiles, making them strategically more important than edge quadrants.
+
+---
+
+### 3.3 ALGORITHM 3: DFS Clusters (Structural D&C)
+
+**File:** [DACAlgorithms.java](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java) — Lines 90-163
+
+**What:** Finds connected groups of same-colored tiles via DFS. Big clusters = strong position.
+
+**D&C Steps:**
+```
+Grid (█=Grey, ░=Yellow):     Clusters Found:
+┌───┬───┬───┬───┐
+│ █ │ ░ │ ░ │ █ │           Grey Cluster 1: {0,4}  size=2
+├───┼───┼───┼───┤           Grey Cluster 2: {3,6}  size=2
+│ █ │ ░ │ █ │ ░ │           Grey Cluster 3: {10}   size=1
+├───┼───┼───┼───┤           Grey Cluster 4: {15}   size=1
+│ ░ │ ░ │ █ │ ░ │
+├───┼───┼───┼───┤           DIVIDE:   Find unvisited tile → new DFS
+│ ░ │ ░ │ ░ │ █ │           CONQUER:  DFS measures each island
+└───┴───┴───┴───┘           COMBINE:  Score = Σ(size²) for top 3
+                            = 2² + 2² + 1² = 4 + 4 + 1 = 9
+```
+
+**DFS Recursion Tree (tile 0):**
+```
+dfs(0, Grey) → visited, size=1
+├── dfs(UP)    → out of bounds → 0
+├── dfs(DOWN=4, Grey) → visited, size=1
+│   ├── dfs(UP=0) → already visited → 0
+│   ├── dfs(DOWN=8) → Yellow → 0
+│   ├── dfs(LEFT) → out of bounds → 0
+│   └── dfs(RIGHT=5) → Yellow → 0
+│   └── return 1
+├── dfs(LEFT)  → out of bounds → 0
+└── dfs(RIGHT=1) → Yellow → 0
+Total: 1 + 1 = 2 (connected cluster)
+```
+
+**Code:**
+```java
+// DACAlgorithms.java — Lines 131-163
+private int dfsClusterSize(boolean[] board, boolean[] visited, int id,
+        int gridSize, boolean targetColor) {
+    if (id < 0 || id >= board.length || visited[id] || board[id] != targetColor)
+        return 0;  // BASE CASE
+
+    visited[id] = true;
+    int size = 1;
+    int row = id / gridSize, col = id % gridSize;
+
+    if (row > 0)            size += dfsClusterSize(..., id - gridSize, ...); // Up
+    if (row < gridSize - 1) size += dfsClusterSize(..., id + gridSize, ...); // Down
+    if (col > 0)            size += dfsClusterSize(..., id - 1, ...);        // Left
+    if (col < gridSize - 1) size += dfsClusterSize(..., id + 1, ...);        // Right
+
+    return size;  // COMBINE: 1 + all branch sizes
+}
+```
+
+**Complexity:**
+
+| Metric | Value | Justification |
+|--------|-------|---------------|
+| **Time** | O(V + E) = O(n) | Each tile visited once |
+| **Space** | O(n) | `visited[]` array + recursion stack |
+
+**Recurrence:** [T(V, E) = O(V + E)](file:///d:/DAA/src/main/java/com/flipwars/Main.java#441-448) — standard DFS
+
+**Why size² scoring?** A cluster of 5 tiles scores 25, while five single tiles score 5. This rewards building large connected territories.
+
+**Why opponent penalty 1.5×?**
+```java
+double clusterScore = myClusterScore - (oppClusterScore * 1.5);
+```
+Breaking opponent clusters is more valuable than building our own.
+
+---
+
+### 3.4 ALGORITHM 4: Minimax (Temporal D&C)
+
+**File:** [DACAlgorithms.java](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java) — Lines 180-304
+
+> **Status:** Implemented but **NOT actively used**. Game uses Greedy evaluation for faster gameplay. Available via [getBestMoveMinimax()](file:///d:/DAA/src/main/java/com/flipwars/Engine.java#160-166).
+
+**What:** Looks ahead into future game states to predict opponent's best response.
+
+**D&C Steps:**
+```
+Depth 0 (CPU):      [Current Board]
+                   /    |    |    \
+Depth 1 (Player): [F0] [F1] [...] [F15]    ← 16 futures
+                   /|\   /|\
+Depth 2 (CPU):    ...   ...                 ← 16 responses each
+
+DIVIDE:   Branch into all possible future states
+CONQUER:  Evaluate leaf nodes
+COMBINE:  CPU picks MIN, Player picks MAX
+```
+
+**Code:**
+```java
+// DACAlgorithms.java — Lines 223-273
+private double minimaxScore(boolean[] board, int depth, boolean isMaximizing,
+        Graph graph, Rules rules, double alpha, double beta) {
+    if (depth == 0) return evaluateBoard(board, rules);  // BASE CASE
+
+    if (isMaximizing) {
+        double maxEval = Double.NEGATIVE_INFINITY;
+        for (int move = 0; move < board.length; move++) {
+            if (rules.isLocked(move)) continue;
+            boolean[] newState = board.clone();
+            simulateFlip(newState, move, graph, rules);
+            double eval = minimaxScore(newState, depth-1, false, ...);
+            maxEval = Math.max(maxEval, eval);
+            alpha = Math.max(alpha, eval);
+            if (beta <= alpha) break;  // Alpha-Beta PRUNE
+        }
+        return maxEval;
+    } else { /* symmetric for minimizing */ }
+}
+```
+
+**Complexity:**
+
+| Metric | Without Pruning | With Alpha-Beta |
+|--------|----------------|-----------------|
+| **Time** | O(b^d) = O(16²) = O(256) | O(b^(d/2)) ≈ O(16) best |
+| **Space** | O(d) = O(2) | O(d) = O(2) |
+
+**Recurrence:** [T(d) = b × T(d-1) + O(n)](file:///d:/DAA/src/main/java/com/flipwars/Main.java#441-448) → [T(d) = O(n × b^d)](file:///d:/DAA/src/main/java/com/flipwars/Main.java#441-448)
+
+**Why not used by default?** Greedy with combined D&C scoring is fast and sufficient. Minimax adds latency for marginal improvement on small boards.
+
+---
+
+## ⚖️ 4. Combined Scoring Formula
+
+```java
+// Engine.java — Lines 46-60
+FinalScore = (Strategic × 0.4) + (Quadrant × 0.2) + (Cluster × 0.2)
+```
+
+| Component | Weight | What It Captures |
 |-----------|--------|------------------|
 | Strategic | 40% | Tile position values (corners, edges, traps) |
-| Quadrant | 20% | Regional control balance |
+| Quadrant | 20% | Regional dominance |
 | Cluster | 20% | Territory connectivity |
 
 ---
 
-## ⚠️ Loopholes & Issues (FIXED ✅)
+## 📊 5. Complete Complexity Summary
 
-### ~~Issue 1: Minimax Not Used in Main Loop~~ ⚠️ OPTIONAL
-```java
-// Available via getBestMoveMinimax() - can be enabled for stronger AI
-public int getBestMoveMinimax(boolean[] currentState) { ... }
+| Algorithm | Time | Space | Recurrence |
+|-----------|------|-------|------------|
+| Merge Sort | O(n log n) | O(n) | T(n) = 2T(n/2) + O(n) |
+| Spatial D&C | O(n) | O(1) | T(n) = 4T(n/4) + O(1) |
+| DFS Clusters | O(V+E) = O(n) | O(n) | T(V,E) = O(V+E) |
+| Minimax | O(b^d) | O(d) | T(d) = bT(d-1) + O(n) |
+| Tabu Lookup | O(1) | O(k) | — |
+
+**Total per CPU move:** O(n²) + O(n log n) ≈ O(n²) where n = 16/25/36 tiles — effectively instant.
+
+---
+
+## 🏗️ 6. Architecture
+
 ```
-**Status:** Available but optional (performance trade-off)
-
----
-
-### ~~Issue 2: Tabu O(n) Lookup~~ ✅ FIXED
-```java
-// BEFORE: O(n) lookup
-private final LinkedList<Integer> tabuList = new LinkedList<>();
-return tabuList.contains(tileId); // O(n)
-
-// AFTER: O(1) lookup
-private final LinkedHashSet<Integer> tabuSet = new LinkedHashSet<>();
-return tabuSet.contains(tileId); // O(1) ✅
+Main.java ─────────► Engine.java ──────► DACAlgorithms.java
+(UI + Game Loop)     (AI + Merge Sort)   (Spatial + DFS + Minimax)
+      │                    │
+      └──────┬─────────────┘
+             ▼
+        Rules.java ◄────────── Graph.java
+      (Tabu + Scoring)        (Adjacency Lists)
 ```
-**Fixed in:** [Rules.java](file:///d:/DAA/src/main/java/com/flipwars/Rules.java)
 
 ---
 
-### ~~Issue 3: Quadrant Weighting~~ ✅ FIXED
-```java
-// BEFORE: All quadrants equal
-double score = (topLeft * 1.5) + (topRight * 1.5) + ...
+## ✅ 7. Conclusion
 
-// AFTER: Corner quadrants weighted higher
-double cornerWeight = 2.0;  // TL and BR contain corners
-double edgeWeight = 1.5;    // TR and BL are edges
-double score = (topLeft * cornerWeight) + (topRight * edgeWeight) + ... // ✅
-```
-**Fixed in:** [DACAlgorithms.java](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java)
+| # | Algorithm | D&C Type | What It Divides |
+|---|-----------|----------|-----------------|
+| 1 | **Merge Sort** | Search Space | List of scored moves |
+| 2 | **Spatial D&C** | Spatial | Physical board → quadrants |
+| 3 | **DFS Clusters** | Structural | Board → connected components |
+| 4 | **Minimax** | Temporal | Future game states → branches |
 
----
-
-### ~~Issue 4: Cluster Score Penalty~~ ✅ FIXED
-```java
-// BEFORE: Equal weight
-double clusterScore = myClusterScore - oppClusterScore;
-
-// AFTER: Penalize opponent clusters 1.5×
-double clusterScore = myClusterScore - (oppClusterScore * 1.5); // ✅
-```
-**Fixed in:** [Engine.java](file:///d:/DAA/src/main/java/com/flipwars/Engine.java)
-
----
-
-### ~~Issue 5: No Randomization~~ ✅ FIXED
-```java
-// BEFORE: Predictable
-return tileScores.get(0)[0];
-
-// AFTER: Random among tied scores
-int bestScore = tileScores.get(0)[1];
-List<int[]> tiedMoves = new ArrayList<>();
-for (int[] move : tileScores) {
-    if (move[1] == bestScore) tiedMoves.add(move);
-    else break;
-}
-return tiedMoves.get(new Random().nextInt(tiedMoves.size()))[0]; // ✅
-```
-**Fixed in:** [Engine.java](file:///d:/DAA/src/main/java/com/flipwars/Engine.java)
-
----
-
-## 📊 Complexity Summary
-
-| Algorithm | Time | Space | Used For |
-|-----------|------|-------|----------|
-| Merge Sort | O(n log n) | O(n) | Ranking moves |
-| Spatial D&C | O(n) | O(1) | Quadrant control |
-| DFS Clusters | O(n) | O(n) | Territory analysis |
-| Minimax | O(b^d) | O(d) | Look-ahead (optional) |
-| Tabu Search | **O(1)** ✅ | O(k) | Move locking |
-
-**Total per move:** O(n) + O(n) + O(n log n) = **O(n log n)** where n = 16/25/36 tiles
-
----
-
-## ✅ Conclusion
-
-The game successfully demonstrates **4 D&C algorithms** working together:
-- **Merge Sort** for efficient move ranking
-- **Spatial D&C** for regional strategy  
-- **DFS** for connectivity analysis
-- **Minimax** for game-tree search (available)
-
-**All 4 loopholes have been fixed!** The AI is now:
-- ⚡ Faster (O(1) tabu lookup)
-- 🎯 Smarter (weighted quadrants, cluster penalties)
-- 🎲 Less predictable (randomization)
-
+**Key Takeaway:** Combining multiple D&C strategies creates a more robust AI than any single algorithm alone.
