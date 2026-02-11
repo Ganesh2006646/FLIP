@@ -196,8 +196,8 @@ graph TD
     F --> J[Store Score]
     J --> B
     B -->|All Moves Scored| K{Selection Strategy}
-    K -->|Option A| L[Merge Sort O n log n]
-    K -->|Option B| M[Tournament Selection O n²]
+    K -->|Option A| L[Merge Sort O&#40;n log n&#41;]
+    K -->|Option B| M[Tournament Selection O&#40;n²&#41;]
     L --> N[Pick Best Move]
     M --> N
     N --> O([Execute Flip])
