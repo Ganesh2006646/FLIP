@@ -178,7 +178,7 @@ public double getTileStrategicValue(int id) {
 
 ---
 
-## 🧠 3. The 4 Divide & Conquer Algorithms
+## 🧠 3. The 5 Divide & Conquer Algorithms
 
 ### CPU Decision Flow
 
@@ -197,7 +197,7 @@ graph TD
     J --> B
     B -->|All Moves Scored| K{Selection Strategy}
     K -->|Option A| L[Merge Sort O n log n]
-    K -->|Option B| M[Tournament Selection O n]
+    K -->|Option B| M[Tournament Selection O n²]
     L --> N[Pick Best Move]
     M --> N
     N --> O([Execute Flip])
@@ -470,21 +470,119 @@ public int tournamentSelection(List<Integer> moves, boolean[] board, ... ) {
 
 | Metric | Value | Justification |
 |--------|-------|---------------|
-| **Time** | O(n) | n-1 total comparisons to find max of n items |
-| **Space** | O(log n) | Recursion depth (tree height) |
+| **Comparisons** | O(n) | n-1 total comparisons (tournament bracket) |
+| **Per Comparison** | O(n) | Each comparison simulates a flip and evaluates the full board |
+| **Total Time** | O(n²) | O(n) comparisons × O(n) board evaluation per comparison |
+| **Space** | O(n) | Board cloning O(n) per comparison + O(log n) recursion depth |
 
 **Recurrence Relation:**
 ```
-T(n) = 2T(n/2) + O(1)
-     = O(n)
+T(n) = 2T(n/2) + O(n)
+                  ↑ Board simulation + evaluation in compareMoves()
 
-(Similar to finding Max in an array using D&C)
+Expansion:
+  Level 0:  1 comparison  × O(n) = O(n)
+  Level 1:  2 comparisons × O(n) = O(2n)
+  Level 2:  4 comparisons × O(n) = O(4n)
+  ...
+  Level k:  2^k comparisons × O(n) = O(2^k × n)
+
+  Total = O(n) × (1 + 2 + 4 + ... + n/2) = O(n) × O(n) = O(n²)
 ```
+
+> **Note:** Unlike a simple max-finding tournament where comparison is O(1), each comparison here involves cloning the board, simulating a flip, and evaluating all tiles — making each comparison O(n).
 
 **Justification — Why Tournament Selection?**
 - **Search Space D&C:** Explicitly divides the *set of choices* rather than the board or time.
-- **Efficient:** O(n) is faster than sorting O(n log n) if we only need the BEST move, not a full ranking.
+- **Single Winner:** Only needs the BEST move, not a full ranking. Avoids O(n² log n) cost of sorting all moves with evaluation.
 - **Parallelizable:** Disjoint brackets could theoretically be evaluated in parallel threads.
+
+---
+
+### 3.5 ALGORITHM 5: Threat Detection D&C (Quadrant Threats)
+
+**File:** [DACAlgorithms.java](file:///d:/DAA/src/main/java/com/flipwars/DACAlgorithms.java) — Lines 239-308
+
+**What:** Divides the board into 4 quadrants and scores each by how many tiles are *exposed* to enemy neighbors. Positive score = opponent is more vulnerable than us.
+
+**D&C Steps:**
+```
+Grid (█=our tile, ░=enemy tile):
+┌───┬───┬───┬───┐
+│ █ │ ░ │ █ │ █ │   For tile (0,0) █: 1 enemy neighbor (right) → our threat += 1
+├───┼───┼───┼───┤   For tile (0,1) ░: 2 our neighbors (left, below?) → enemy threat += 2
+│ █ │ █ │ ░ │ ░ │
+├───┼───┼───┼───┤   DIVIDE:   Split into 4 quadrants
+│ ░ │ █ │ █ │ ░ │   CONQUER:  For each tile, count enemy neighbors
+├───┼───┼───┼───┤   COMBINE:  Score = enemy_threats - our_threats
+│ ░ │ ░ │ ░ │ █ │             Weighted: corner quadrants × 2.0, edge quadrants × 1.5
+└───┴───┴───┴───┘
+```
+
+**Code:**
+```java
+// DACAlgorithms.java — Lines 239-255
+public double evaluateThreats(boolean[] board, int gridSize, boolean forPlayer) {
+    int half = gridSize / 2;
+
+    // DIVIDE: Split into 4 quadrants
+    double tlThreat = evaluateQuadrantThreats(board, 0, 0, half, gridSize, forPlayer);
+    double trThreat = evaluateQuadrantThreats(board, 0, half, gridSize-half, gridSize, forPlayer);
+    double blThreat = evaluateQuadrantThreats(board, half, 0, gridSize-half, gridSize, forPlayer);
+    double brThreat = evaluateQuadrantThreats(board, half, half, gridSize-half, gridSize, forPlayer);
+
+    // COMBINE: Weight corner quadrants higher (strategic corners more valuable to defend)
+    double cornerWeight = 2.0;
+    double edgeWeight = 1.5;
+    return (tlThreat * cornerWeight) + (trThreat * edgeWeight)
+         + (blThreat * edgeWeight) + (brThreat * cornerWeight);
+}
+
+// DACAlgorithms.java — Lines 267-308 (Conquer step)
+private double evaluateQuadrantThreats(boolean[] board, int startRow, int startCol,
+        int size, int gridSize, boolean forPlayer) {
+    double ourThreats = 0, enemyThreats = 0;
+    boolean ourColor = forPlayer;
+
+    for (int r = startRow; r < startRow + size && r < gridSize; r++) {
+        for (int c = startCol; c < startCol + size && c < gridSize; c++) {
+            int id = r * gridSize + c;
+            boolean tileIsOurs = (board[id] == ourColor);
+
+            int enemyNeighborCount = 0;
+            if (r > 0 && board[(r-1)*gridSize + c] != board[id]) enemyNeighborCount++;
+            if (r < gridSize-1 && board[(r+1)*gridSize + c] != board[id]) enemyNeighborCount++;
+            if (c > 0 && board[r*gridSize + (c-1)] != board[id]) enemyNeighborCount++;
+            if (c < gridSize-1 && board[r*gridSize + (c+1)] != board[id]) enemyNeighborCount++;
+
+            if (enemyNeighborCount > 0) {
+                if (tileIsOurs) ourThreats += enemyNeighborCount;    // Our tile exposed — BAD
+                else            enemyThreats += enemyNeighborCount;  // Enemy exposed — GOOD
+            }
+        }
+    }
+    return enemyThreats - ourThreats;  // Positive = favorable
+}
+```
+
+**Complexity:**
+
+| Metric | Value | Justification |
+|--------|-------|---------------|
+| **Time** | O(n) | Each tile visited exactly once across 4 quadrants; neighbor check is O(1) per tile |
+| **Space** | O(1) | Only scalar accumulators, no extra arrays |
+
+**Recurrence:**
+```
+T(n) = 4 × T(n/4) + O(1)
+     = O(n)
+(Master Theorem: a=4, b=4, f(n)=O(1) → Case 1 → T(n) = Θ(n))
+```
+
+**Why Threat Detection matters:**
+- A tile surrounded by enemies is *exposed* — it will likely be flipped on the next turn
+- The CPU uses this (30% weight) to prioritize moves that expose the opponent while shielding its own tiles
+- Corner quadrants weighted 2.0× because losing corner tiles (+25 points) is strategically devastating
 
 ---
 
@@ -499,7 +597,7 @@ T(n) = 2T(n/2) + O(1)
 ### R2: Smart D&C Engine (Current)
 - **Logic:** Weighted heuristic of 4 D&C evaluations
 - **Behavior:** Defends weak spots, attacks clusters, avoids bait moves
-- **Selection:** Tournament Selection for O(n) efficiency
+- **Selection:** Tournament Selection for CPU move (O(n²) with board evaluation)
 - **Formula:**
 ```
 FinalScore = (Strategic * 0.2) + (Spatial * 0.25) + (Cluster * 0.25) + (Threat * 0.3)
@@ -521,28 +619,49 @@ FinalScore = (Strategic * 0.2) + (Spatial * 0.25) + (Cluster * 0.25) + (Threat *
 | Merge Sort | O(n log n) | O(n) | T(n) = 2T(n/2) + O(n) |
 | Spatial D&C | O(n) | O(1) | T(n) = 4T(n/4) + O(1) |
 | DFS Clusters | O(V+E) = O(n) | O(n) | T(V,E) = O(V+E) |
-| Tournament | O(n) | O(log n) | T(n) = 2T(n/2) + O(1) |
+| Tournament | O(n²) | O(n) | T(n) = 2T(n/2) + O(n) — each comparison evaluates full board |
 | Threat Detection | O(n) | O(1) | T(n) = 4T(n/4) + O(1) |
 | Tabu Lookup | O(1) | O(k) | — |
 
-**Total per CPU move:** O(n²) + O(n log n) ≈ O(n²) where n = 16/25/36 tiles — effectively instant.
+**Total per CPU move:** O(n²) where n = 16/25/36 tiles — effectively instant for small boards.
 
 ---
 
 ## 6. Architecture
 
 ```
-Main.java ----------> Engine.java ------> DACAlgorithms.java
-(UI + Game Loop       (AI Logic:           (4 D&C Algorithms:
- + Version Selector)   R1 Greedy +           Spatial + DFS +
-                       R2 D&C +              Tournament + Threat)
-                       Merge Sort)
-      |                    |
-      +--------+-----------+
-               v
-        Rules.java <---------- Graph.java
-      (Tabu + Scoring)        (Adjacency Lists)
+┌─────────────────────────┐
+│       Main.java         │
+│  (UI + Game Loop        │
+│   + Version Selector)   │
+└──────┬──────────────────┘
+       │ creates & delegates
+       v
+┌─────────────────────────┐         ┌──────────────────────────┐
+│      Engine.java        │────────>│   DACAlgorithms.java     │
+│  (AI Logic:             │         │  (4 D&C Algorithms:      │
+│   R1 Greedy +           │         │   Spatial + DFS +        │
+│   R2 D&C +              │         │   Tournament + Threat)   │
+│   Merge Sort)           │         └──────┬───────────────────┘
+└──────┬──────────────────┘                │
+       │                                   │
+       │    uses                     uses   │
+       v                                   v
+┌─────────────────┐           ┌────────────────────┐
+│   Graph.java    │           │    Rules.java      │
+│ (Adjacency      │           │  (Tabu + Scoring)  │
+│  Lists)         │           │                    │
+└─────────────────┘           └────────────────────┘
 ```
+
+**Dependency Summary:**
+- **Main.java** → Engine.java, Graph.java, Rules.java, DACAlgorithms.java
+- **Engine.java** → Graph.java, Rules.java, DACAlgorithms.java
+- **DACAlgorithms.java** → Graph.java, Rules.java (via `tournamentSelection` parameters)
+- **Graph.java** → *(no internal dependencies — standalone)*
+- **Rules.java** → *(no internal dependencies — standalone)*
+
+> **Note:** `Graph.java` and `Rules.java` are independent of each other. Both are leaf dependencies used by the upper layers.
 
 ---
 
