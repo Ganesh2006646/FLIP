@@ -184,25 +184,62 @@ public double getTileStrategicValue(int id) {
 
 ```mermaid
 graph TD
-    A([CPU Turn Start]) --> B{Get Valid Moves}
-    B -->|Loop| C[Clone Board]
-    C --> D[Simulate Flip]
-    D --> E[Evaluate State]
-    E --> F{Combined Score}
-    F -- 40% --> G[Strategic]
-    F -- 2.0x --> H[Spatial D&C]
-    F -- 0.5x --> I[Cluster D&C]
-    H & I & G --> F
-    F --> J[Store Score]
-    J --> B
-    B -->|All Moves Scored| K{Selection Strategy}
-    K -->|Option A| L[Merge Sort O&#40;n log n&#41;]
-    K -->|Option B| M[Tournament Selection O&#40;n²&#41;]
-    L --> N[Pick Best Move]
-    M --> N
-    N --> O([Execute Flip])
-    style A fill:#f9f,stroke:#333
-    style O fill:#9f9,stroke:#333
+    A([🎮 CPU Turn Start]) --> B{Get Valid Moves}
+
+    subgraph SIM ["🔄 Simulation Loop (per move)"]
+        direction TB
+        C[📋 Clone Board State] --> D[⚡ Simulate Flip + Neighbors]
+        D --> E[📊 Evaluate Board State]
+    end
+
+    B -->|"For each valid move"| C
+
+    subgraph EVAL ["🧠 Weighted Evaluation (R2 Formula)"]
+        direction TB
+        E --> G["♟️ Strategic Score\n(Corners · Edges · Traps)"]
+        E --> H["🗺️ Spatial D&C\n(Quadrant Control)"]
+        E --> I["🔗 Cluster D&C\n(DFS Connected Components)"]
+        E --> T["⚔️ Threat D&C\n(Quadrant Vulnerability)"]
+
+        G -- "× 0.20 (20%)" --> F
+        H -- "× 0.25 (25%)" --> F
+        I -- "× 0.25 (25%)" --> F
+        T -- "× 0.30 (30%)" --> F
+
+        F(["Combined Score =\nΣ weighted components"])
+    end
+
+    F --> J[💾 Store Move + Score]
+    J -->|"Next move"| B
+
+    B -->|"All Moves Scored"| K{Selection Strategy}
+
+    subgraph SELECT ["🏆 Move Selection"]
+        direction TB
+        K -->|"R1: Greedy"| L["📊 Merge Sort\nO(n log n) · Stable"]
+        K -->|"R2: Smart D&C"| M["🥊 Tournament Selection\nO(n²) · Board-aware"]
+        L --> N["🎯 Pick Best Move"]
+        M --> N
+    end
+
+    N --> O([✅ Execute Flip])
+
+    style A fill:#c084fc,stroke:#7c3aed,stroke-width:2px,color:#fff
+    style B fill:#fbbf24,stroke:#d97706,stroke-width:2px,color:#000
+    style C fill:#93c5fd,stroke:#3b82f6,stroke-width:1px
+    style D fill:#93c5fd,stroke:#3b82f6,stroke-width:1px
+    style E fill:#93c5fd,stroke:#3b82f6,stroke-width:1px
+    style G fill:#fca5a5,stroke:#ef4444,stroke-width:1px
+    style H fill:#fdba74,stroke:#f97316,stroke-width:1px
+    style I fill:#86efac,stroke:#22c55e,stroke-width:1px
+    style T fill:#a5b4fc,stroke:#6366f1,stroke-width:1px
+    style F fill:#fde68a,stroke:#f59e0b,stroke-width:2px,color:#000
+    style J fill:#d1d5db,stroke:#6b7280,stroke-width:1px
+    style K fill:#fbbf24,stroke:#d97706,stroke-width:2px,color:#000
+    style L fill:#c4b5fd,stroke:#8b5cf6,stroke-width:1px
+    style M fill:#c4b5fd,stroke:#8b5cf6,stroke-width:1px
+    style N fill:#6ee7b7,stroke:#10b981,stroke-width:2px
+    style O fill:#34d399,stroke:#059669,stroke-width:3px,color:#fff
 ```
 
 ---
