@@ -376,8 +376,8 @@ public double evaluateQuadrants(boolean[] board, int gridSize, boolean forPlayer
 Grid (█=Grey, ░=Yellow):     Clusters Found:
 ┌───┬───┬───┬───┐
 │ █ │ ░ │ ░ │ █ │           Grey Cluster 1: {0,4}  size=2
-├───┼───┼───┼───┤           Grey Cluster 2: {3,6}  size=2
-│ █ │ ░ │ █ │ ░ │           Grey Cluster 3: {10}   size=1
+├───┼───┼───┼───┤           Grey Cluster 2: {6,10} size=2
+│ █ │ ░ │ █ │ ░ │           Grey Cluster 3: {3}    size=1
 ├───┼───┼───┼───┤           Grey Cluster 4: {15}   size=1
 │ ░ │ ░ │ █ │ ░ │
 ├───┼───┼───┼───┤           DIVIDE:   Find unvisited tile → new DFS
