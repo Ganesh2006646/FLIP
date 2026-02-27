@@ -78,6 +78,7 @@ public class Engine {
     public void setLogger(Consumer<String> logger) {
         this.logger = logger;
         this.dac = new DACAlgorithms(logger);
+        r3.setLogger(logger); // propagate to R3 Alpha-Beta + Oracle logs
     }
 
     /**

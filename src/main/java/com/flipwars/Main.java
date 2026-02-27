@@ -100,7 +100,7 @@ public class Main extends JFrame {
         // ── 2. Rebuild Graph + Rules + Engine with BH topology ───────────────
         this.graph = new Graph(gridSize, blackHoles);
         this.rules = new Rules(gridSize, blackHoles);
-        this.ai = new Engine(totalTiles, graph, rules, this::logBrain);
+        this.ai = new Engine(totalTiles, graph, rules); // logger wired after panel
         ai.setVersion(selectedVersion);
 
         // ── 3. Reset game state ───────────────────────────────────────────────
@@ -124,21 +124,24 @@ public class Main extends JFrame {
         }
         rules.clearMemory();
 
-        // ── 5. Brain Scanner ─────────────────────────────────────────────────
-        if (brainLog != null)
-            brainLog.setText("");
-        logBrain("=== GAME START ===");
-        logBrain("Grid: " + gridSize + "x" + gridSize + " | R" + selectedVersion);
-        logBrain("Black Holes at tiles: " + blackHoles);
-        logBrain("Your turn! Click a tile or press Hint.");
-
-        // ── 6. Build game panel ───────────────────────────────────────────────
+        // ── 5. Build game panel FIRST — this sets brainLog field ─────────────
         if (gamePanel != null)
             mainPanel.remove(gamePanel);
         gamePanel = createGamePanel();
         mainPanel.add(gamePanel, "GAME");
         mainPanel.revalidate();
         mainPanel.repaint();
+
+        // ── 6. NOW wire the logger into Engine (brainLog is non-null now) ─────
+        ai.setLogger(this::logBrain);
+
+        // ── 7. Brain Scanner startup messages ────────────────────────────────
+        brainLog.setText("");
+        logBrain("=== GAME START ===");
+        logBrain("Grid Size: " + gridSize + "  |  Version: R" + selectedVersion);
+        logBrain("Black Holes generated at tiles: " + blackHoles);
+        logBrain("--------------------------------------------");
+        logBrain("Your turn! Click a tile or press [Get Hint].");
 
         updateBoardUI();
         updateScoreDisplay();

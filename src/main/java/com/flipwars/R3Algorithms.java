@@ -1,6 +1,7 @@
 package com.flipwars;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * ============================================================================
@@ -39,7 +40,17 @@ public class R3Algorithms {
     private final int totalTiles;
     private final Graph graph;
     private final Rules rules;
-    private final DACAlgorithms dac;
+    private DACAlgorithms dac;
+
+    /** Brain Scanner logger — silent by default, wired in by Engine.setLogger() */
+    private Consumer<String> logger = msg -> {
+    };
+
+    /** Allows Engine to inject the Brain Scanner logger after construction. */
+    public void setLogger(Consumer<String> logger) {
+        this.logger = logger;
+        this.dac = new DACAlgorithms(logger);
+    }
 
     // ---- MANEESH: Dynamic depth limit based on grid size --------------------
     /**
@@ -158,10 +169,12 @@ public class R3Algorithms {
         if (moves.isEmpty())
             return -1;
 
-        // ---- MANEESH: Order moves best-first before root expansion ----------
-        // This ensures the first branch gives a tight alpha bound,
-        // maximising cutoffs for all subsequent siblings.
         moves = orderMoves(moves, board, forPlayer);
+
+        // ── BRAIN SCANNER ───────────────────────────────────────────────
+        logger.accept(String.format(
+                "[Alpha-Beta] Search started. Depth=%d | Moves to explore: %d",
+                MAX_DEPTH, moves.size()));
 
         int bestMove = moves.get(0);
         double bestVal = Double.NEGATIVE_INFINITY;
@@ -169,10 +182,8 @@ public class R3Algorithms {
         double beta = Double.POSITIVE_INFINITY;
 
         for (int move : moves) {
-            // ---- SUHAS: doMove — flip in-place (O(1) extra space) -----------
             doMove(board, move);
             double val = alphaBeta(board, MAX_DEPTH - 1, alpha, beta, !forPlayer);
-            // ---- SUHAS: undoMove — exact reverse of doMove ------------------
             undoMove(board, move);
 
             if (val > bestVal) {
@@ -181,6 +192,8 @@ public class R3Algorithms {
             }
             alpha = Math.max(alpha, bestVal);
         }
+        logger.accept(String.format(
+                "[Alpha-Beta] Final Champion: Tile %d  (score=%.2f)", bestMove, bestVal));
         return bestMove;
     }
 
@@ -195,12 +208,16 @@ public class R3Algorithms {
      * @return Tile index of the recommended hint move
      */
     public int getPlayerHintR3(boolean[] board) {
-        // ---- BALAJI: Oracle path (4x4 only) ---------------------------------
         if (gridSize == 4 && oracleReady) {
             int state = boardToInt(board);
-            return getExactWinMove(state);
+            int hint = getExactWinMove(state);
+            // ── BRAIN SCANNER ─────────────────────────────────────────
+            logger.accept("[Bitmask DP Oracle] 65536-state BFS table lookup.");
+            logger.accept(String.format(
+                    "[Oracle] Best hint \u2192 Tile %d  (O(1) lookup, precomputed table)", hint));
+            return hint;
         }
-        // Fallback: Alpha-Beta for 5x5, 6x6, or while Oracle is still computing.
+        logger.accept("[Alpha-Beta] Oracle not ready — falling back to Alpha-Beta search.");
         return getBestMoveR3(board, true);
     }
 
