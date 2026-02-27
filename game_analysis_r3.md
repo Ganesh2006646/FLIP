@@ -1,280 +1,341 @@
-# Flip Wars — Review 3 Analysis: Dynamic Programming + Backtracking
+# Flip Wars — Complete Game & Algorithm Analysis (Review 3)
 
-> **Team-13 · Design & Analysis of Algorithms · Review 3**
+## 1. What Is Flip Wars?
 
----
+Flip Wars is a **two-player strategic tile-flipping board game** where a human player (Yellow) battles a CPU opponent (Grey). Review 3 demonstrates **Dynamic Programming + Backtracking** as the AI backbone, with two new "Out-of-the-Box" features: **Dynamic Obstacles (Black Holes)** and a **Brain Scanner** real-time AI log.
 
-## 1. Overview — What Changed in R3?
+### Game Configuration
 
-Review 3 replaces the one-shot heuristic evaluation of R2 with a **State-Space Search Engine** that looks ahead multiple moves into the future. Instead of asking *"which single move scores best right now?"*, it asks *"which move leads to the best position several turns from now?"*
+| Attribute | Value |
+|-----------|-------|
+| Grid Sizes | 4×4 (16 tiles), 5×5 (25 tiles), 6×6 (36 tiles) |
+| Players | Human (Yellow) vs CPU (Grey) |
+| Turn Limit | 15 turns (4×4), 25 turns (5×5, 6×6) |
+| Win Condition | All tiles one color OR highest score at turn limit |
+| Black Holes | 2 dead tiles per game (unclickable, unownable) |
 
-The engine is composed of **four tightly integrated algorithms**, each contributed by a team member:
-
-| # | Algorithm | Member | File |
-|---|-----------|--------|------|
-| 1 | **Pure Backtracking** — in-place doMove/undoMove | Suhas | `R3Algorithms.java` |
-| 2 | **Alpha-Beta Pruning Minimax** | Maneesh | `R3Algorithms.java` |
-| 3 | **Transposition Table (Zobrist Hash)** | Ganesh | `R3Algorithms.java` |
-| 4 | **Bottom-Up Bitmask DP Oracle** (4×4) | Balaji | `R3Algorithms.java` |
-
-### New Features Also Added in R3
-- **3D Nintendo-style tiles** — custom `TileButton.java` with 3-layer paint
-- **Brain Scanner** — real-time AI decision log panel (thread-safe)
-- **Dynamic Black Hole tiles** — 1–2 random dead tiles per game
+### Review 3 New Features
+- **Dynamic Obstacles (Black Holes):** 2 randomly placed void tiles warp the graph topology each game
+- **Brain Scanner:** Real-time AI reasoning logged to a UI text area
+- **4 DP + Backtracking Algorithms:** State-Space Search Engine replaces heuristic-only play
+- **Version Selector:** R1 (Greedy) → R2 (D&C) → R3 (DP + Backtracking)
 
 ---
 
-## 2. Algorithm 1 — SUHAS: Pure Backtracking
+## 🔄 2. How the Game Works — Step by Step
 
-### Key Insight: XOR Flip Is Its Own Inverse
+### 2.0 Game Loop Workflow
 
-In Flip Wars, every flip toggles tiles using boolean NOT. Critically:
+```mermaid
+graph TD
+    Start([Start]) --> BH[Generate 2 Black Holes]
+    BH --> RebuildGraph[Rebuild Graph\nwithout BH edges]
+    RebuildGraph --> PlayerTurn[Player Turn]
+    PlayerTurn --> PlayerClick[Player Click]
+    PlayerClick --> Validate{Valid Move?\nNot BH, Not Locked}
+    Validate -->|No| PlayerTurn
+    Validate -->|Yes| FlipTiles[Flip Tiles & Neighbors]
+    FlipTiles --> BrainLog[Brain Scanner Log]
+    BrainLog --> UpdateScore[Update Scores]
+    UpdateScore --> CheckWin{Game Over?}
+    CheckWin -->|No| CPUTurn[CPU Turn]
+    CheckWin -->|Yes| GameOver([End Game])
+    CPUTurn --> AlphaBeta[Alpha-Beta Minimax\nDepth 6/4/3]
+    AlphaBeta --> MemoCheck{Transposition\nTable Hit?}
+    MemoCheck -->|Yes| ReturnCached[Return Cached Score O(1)]
+    MemoCheck -->|No| Explore[Explore Branch\ndoMove/undoMove]
+    Explore --> MemoStore[Store in TT]
+    MemoStore --> FlipTiles
 
+    style Start fill:#f9f,stroke:#333,stroke-width:2px
+    style GameOver fill:#f9f,stroke:#333,stroke-width:2px
+    style Validate fill:#ffd,stroke:#333,stroke-width:2px
+    style CheckWin fill:#ffd,stroke:#333,stroke-width:2px
+    style MemoCheck fill:#ffd,stroke:#333,stroke-width:2px
+    style BH fill:#222,color:#fff,stroke:#f00,stroke-width:2px
 ```
-NOT(NOT(x)) = x
-```
 
-This means applying the same flip **twice** restores the original state exactly. So `doMove` and `undoMove` are identical functions — no separate "undo logic" is needed.
+### 2.1 Black Holes — Dynamic Obstacles
 
-### Implementation
+At game start, 2 tiles are randomly selected as **Black Holes**. They are:
+- Rendered black and disabled in the UI
+- Removed from the Graph adjacency list (no edges to/from them)
+- Skipped by all scoring and DFS algorithms
 
 ```java
-// R3Algorithms.java
+// Main.java — startGame()
+blackHoles = new HashSet<>();
+Random rand = new Random();
+while (blackHoles.size() < 2) {
+    blackHoles.add(rand.nextInt(totalTiles));
+}
+graph = new Graph(gridSize, blackHoles);    // Graph rebuilt without BH edges
+rules = new Rules(gridSize, blackHoles);    // Rules ignores BH in scoring
+logBrain("=== GAME START ===");
+logBrain("Grid Size: " + gridSize + "x" + gridSize);
+logBrain("Black Holes at tiles: " + blackHoles);
+```
+
+**Why is this powerful for graph theory?**
+The DFS Cluster algorithm naturally "flows around" Black Holes without any code change — because Black Hole tiles have **no edges** in the adjacency list, DFS simply never visits them. This demonstrates real **irregular graph handling**.
+
+```
+4×4 Board with Black Holes at tile 5 and 10:
+┌───┬───┬───┬───┐
+│ 0 │ 1 │ 2 │ 3 │   Tile 1's neighbors: {0, 2, 5} → 5 is BH
+├───┼───┼───┼───┤                           → after rebuild: {0, 2}
+│ 4 │ ■ │ 6 │ 7 │   DFS from tile 4 cannot cross tile 5
+├───┼───┼───┼───┤   DFS from tile 11 cannot visit tile 10
+│ 8 │ 9 │ ■ │11 │   This creates TWO disconnected graph components!
+├───┼───┼───┼───┤
+│12 │13 │14 │15 │
+└───┴───┴───┴───┘
+■ = Black Hole (no adjacency edges)
+```
+
+### 2.2 Flip Mechanic (The Core Action)
+
+When any tile is clicked, it flips **itself AND all 4 orthogonal neighbors** in a **plus (+) pattern**. Black Holes are skipped automatically since they have no neighbors in the graph.
+
+```java
+// Graph.java — initializeGraph() with Black Hole support
+private void initializeGraph() {
+    for (int r = 0; r < gridSize; r++) {
+        for (int c = 0; c < gridSize; c++) {
+            int id = r * gridSize + c;
+            if (blackHoles.contains(id)) {
+                adjacencyList.put(id, Collections.emptyList()); // BH: no edges
+                continue;
+            }
+            List<Integer> neighbors = new ArrayList<>();
+            neighbors.add(id);  // self
+            // Only add neighbors that are NOT black holes
+            if (r > 0 && !blackHoles.contains(id - gridSize)) neighbors.add(id - gridSize);
+            if (r < gridSize-1 && !blackHoles.contains(id + gridSize)) neighbors.add(id + gridSize);
+            if (c > 0 && !blackHoles.contains(id - 1)) neighbors.add(id - 1);
+            if (c < gridSize-1 && !blackHoles.contains(id + 1)) neighbors.add(id + 1);
+            adjacencyList.put(id, neighbors);
+        }
+    }
+}
+```
+
+**Why a Graph?** Neighbors are precomputed once at construction → O(1) lookup per flip. Black Hole exclusion at construction time costs zero during gameplay.
+
+---
+
+### 2.3 Lock Mechanic (Tabu Search)
+
+Same as R2 — after clicking, a tile is locked for several turns using a `LinkedHashSet` for O(1) lookup. Black Holes are never added to the Tabu set (they can't be clicked).
+
+---
+
+### 2.4 Brain Scanner (Real-Time AI Logging)
+
+A `Consumer<String> logger` is injected into `Engine` and `DACAlgorithms` at construction time. During each AI computation, key reasoning steps are sent to the UI's `logBrain()` text area.
+
+```
+[GAME START] Grid: 4x4 | Black Holes: {5, 10}
+[Hint] Merge Sort ranked 14 moves. Top: Tile 3
+[Tournament D&C] Tile 7 vs Tile 3 → Winner: Tile 3 (score: 142.5 > 98.0)
+[Alpha-Beta] Depth=6 | α=-∞ β=+∞ | Exploring 14 moves
+[TT Hit] State hash=0xABCD1234 at depth=4 → returning cached score 87.3
+[Alpha-Beta Cut] β(72.1) ≤ α(89.4) → Pruned 9 branches
+[Oracle] 4x4 BFS lookup: Tile 3 → distance=2 to win
+```
+
+---
+
+## 🧠 3. The 4 DP + Backtracking Algorithms (R3)
+
+### CPU Decision Flow
+
+```mermaid
+graph TD
+    A([CPU Turn Start]) --> B[Get & Order Moves\nR2 Heuristic Sort]
+
+    subgraph BT ["SUHAS — Pure Backtracking"]
+        B --> C[doMove board move\nO(1) in-place flip]
+        C --> D{Base Case?\ndepth=0 or no moves}
+        D -->|Yes| E[evaluateLeaf\nR2 scoring]
+        D -->|No| F[Recurse alphaBeta]
+        F --> G[undoMove board move\nXOR self-inverse restore]
+    end
+
+    subgraph TT ["GANESH — Transposition Table"]
+        H{Zobrist Hash\nin ttTable?}
+        H -->|Hit O(1)| I[Return cached score]
+        H -->|Miss| C
+        G --> J[Store hash → score\nin ttTable]
+    end
+
+    subgraph AB ["MANEESH — Alpha-Beta Pruning"]
+        K{beta ≤ alpha?}
+        K -->|Yes: Prune| L[Skip remaining branches]
+        K -->|No| F
+        J --> K
+    end
+
+    subgraph OR ["BALAJI — Bitmask DP Oracle (4x4)"]
+        M{Grid == 4x4\n& oracleReady?}
+        M -->|Yes| N[exactSolver lookup\nO(1) BFS distance]
+        M -->|No| B
+    end
+
+    B --> H
+    E --> J
+
+    style A fill:#c084fc,stroke:#7c3aed,stroke-width:2px,color:#fff
+    style BT fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style TT fill:#1a3a1a,stroke:#22c55e,color:#fff
+    style AB fill:#3a1a1a,stroke:#ef4444,color:#fff
+    style OR fill:#3a2a00,stroke:#f59e0b,color:#fff
+```
+
+---
+
+### 3.1 ALGORITHM 1 — SUHAS: Pure Backtracking
+
+**File:** [R3Algorithms.java](file:///d:/DAA/src/main/java/com/flipwars/R3Algorithms.java)
+
+**Key Insight:** A tile flip is an **involuntary operation** (XOR). Applying the same flip twice returns to the exact original state. This means `undoMove ≡ doMove` mathematically.
+
+```java
 public void doMove(boolean[] board, int move) {
     for (int neighbor : graph.getNeighbors(move)) {
-        if (!rules.isLocked(neighbor) && !rules.isDeadTile(neighbor)) {
-            board[neighbor] = !board[neighbor];   // XOR flip
+        if (!rules.isLocked(neighbor)) {
+            board[neighbor] = !board[neighbor];  // XOR flip
         }
     }
 }
 
 public void undoMove(boolean[] board, int move) {
-    doMove(board, move);   // Identical — XOR inverts itself
+    doMove(board, move);  // Identical — XOR is self-inverse
 }
 ```
 
-### Why This Matters
+**D&C Pattern (State-Space Search):**
+```
+DIVIDE:   Split game tree into MAX/MIN layers
+CONQUER:  Recurse to depth limit, evaluate leaf
+COMBINE:  Propagate best score upward via α-β
+```
 
-| Approach | Space per depth level | Allocations for depth-6 search |
-|---|---|---|
-| `board.clone()` (old R2) | O(n) | 6 × n booleans |
-| **doMove/undoMove (R3)** | **O(1)** | **Zero** |
+**Complexity per depth level:**
 
-A single shared `boolean[]` is passed through the entire search tree. Only the last move is ever "in flight" — when we return from recursion, `undoMove` restores it.
-
-### Complexity
-- **Time:** O(k) per call where k ≤ 5 (flip group size), effectively O(1)
-- **Space:** O(1) extra per depth level — O(depth) total call stack
+| Metric | Value | Justification |
+|--------|-------|---------------|
+| **Space** | O(1) | No board.clone() — single shared array |
+| **Time per flip** | O(k), k≤5 | Only neighbors flipped (graph degree ≤ 5) |
 
 ---
 
-## 3. Algorithm 2 — MANEESH: Alpha-Beta Pruning Minimax
+### 3.2 ALGORITHM 2 — MANEESH: Alpha-Beta Pruning Minimax
 
-### What Is Minimax?
+**File:** [R3Algorithms.java](file:///d:/DAA/src/main/java/com/flipwars/R3Algorithms.java)
 
-The game tree is a perfect-information two-player zero-sum game. Minimax models both players optimally:
-- **Maximizing player** (Human, Yellow): picks the move with the **highest** score
-- **Minimizing player** (CPU, Grey): picks the move with the **lowest** score
+**What:** Recursive Minimax with α-β pruning. The maximizer (Player) and minimizer (CPU) alternate. Branches guaranteed to be worse than the current best are skipped.
 
-### Alpha-Beta Pruning
-
-Alpha-Beta prunes entire subtrees that cannot affect the final decision:
-
-```
-alpha = best score the MAXIMIZER can guarantee (starts at -∞)
-beta  = best score the MINIMIZER can guarantee (starts at +∞)
-
-If beta ≤ alpha:  the current branch can NEVER be chosen → PRUNE
-```
-
-```
-Game tree example (depth 2):
-         MAX(root)
-        /    \    \
-      MIN    MIN   MIN
-     / \    / \    / \
-    3   5  2   9  [PRUNED]
-        ↑
-    beta=5, so right branch with MIN(2,9)
-    is pruned: MAX already guaranteed 5
-```
-
-### Move Ordering — D&C Integration
-
-Before exploring a node's children, we **sort moves best-first** using the R2 heuristic evaluator:
-
-```java
-private List<Integer> orderMoves(List<Integer> moves, boolean[] board, boolean forPlayer) {
-    List<int[]> scored = new ArrayList<>();
-    for (int move : moves) {
-        boolean[] temp = board.clone();  // Shallow clone ONLY for ordering
-        applyFlip(temp, move);
-        double score = evaluateLeaf(temp, forPlayer);
-        scored.add(new int[]{move, (int)(score * 1000)});
-    }
-    scored.sort((a, b) -> Integer.compare(b[1], a[1]));  // Best first
-    ...
-}
-```
-
-By searching the best move first, alpha gets a tight upper bound early, causing more β-cutoffs on siblings.
-
-### Dynamic Depth Limit
+**Dynamic Depth — prevents UI freeze:**
 
 | Grid | MAX_DEPTH | Raw nodes | After α-β |
 |------|-----------|-----------|-----------|
-| 4×4  | 6 | ≈16M | ≈4,000 |
-| 5×5  | 4 | ≈390K | ≈19,000 |
-| 6×6  | 3 | ≈46K | ≈2,000 |
+| 4×4  | 6         | ~16M      | ~4,000    |
+| 5×5  | 4         | ~390K     | ~19,000   |
+| 6×6  | 3         | ~46K      | ~2,000    |
 
-Deeper search is safe on 4×4 because the branching factor (≤16) is much smaller than 5×5 (≤25).
+**Move Ordering (D&C Integration):** Before expanding any node, moves are scored by the R2 heuristic and sorted best-first. This maximizes α-β cutoffs (best moves evaluated first → tighter bounds → more pruning).
 
-### Complexity
+```java
+private double alphaBeta(boolean[] board, int depth,
+                         double alpha, double beta, boolean isMaximizing) {
+    // GANESH: TT lookup before any recursion
+    long hash = getBoardHash(board);
+    if (ttTable.containsKey(hash) && ttTable.get(hash)[1] >= depth)
+        return ttTable.get(hash)[0];
 
-| Metric | Worst Case | With Move Ordering |
-|--------|------------|-------------------|
-| Time | O(b^d) | O(b^(d/2)) |
-| Space | O(d) | O(d) |
+    if (depth == 0) return evaluateLeaf(board, isMaximizing);
 
-Where b = branching factor, d = MAX_DEPTH. Alpha-Beta effectively **doubles** the achievable depth vs raw Minimax.
+    // MANEESH: Order moves best-first (D&C heuristic sort)
+    List<Integer> moves = orderMoves(getAvailableMoves(), board, isMaximizing);
+
+    double best = isMaximizing ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+    for (int move : moves) {
+        doMove(board, move);                                    // SUHAS
+        double val = alphaBeta(board, depth-1, alpha, beta, !isMaximizing);
+        undoMove(board, move);                                  // SUHAS
+
+        if (isMaximizing) { best = Math.max(best, val); alpha = Math.max(alpha, best); }
+        else              { best = Math.min(best, val); beta  = Math.min(beta,  best); }
+
+        if (beta <= alpha) break;  // ← The prune moment (β-cut or α-cut)
+    }
+    ttTable.put(hash, new double[]{best, depth, nodeType});    // GANESH
+    return best;
+}
+```
+
+**Recurrence:**
+```
+T(n,d) = n × T(n, d-1)  (no pruning)
+       ≈ √n^d            (with optimal α-β ordering)
+```
 
 ---
 
-## 4. Algorithm 3 — GANESH: Transposition Table (Top-Down Memoization)
+### 3.3 ALGORITHM 3 — GANESH: Zobrist Transposition Table (Top-Down DP)
 
-### The Problem: Overlapping Subproblems
+**File:** [R3Algorithms.java](file:///d:/DAA/src/main/java/com/flipwars/R3Algorithms.java)
 
-In a game tree, the same board position can be reached via many different move sequences:
+**What:** Memoizes already-evaluated board states. Two different move sequences reaching the same board are overlapping subproblems — only evaluated once.
 
-```
-Root → Move A → Move B → [State X]
-Root → Move B → Move A → [State X]
-
-Without memoization: State X evaluated TWICE (or more).
-With memoization:    State X evaluated ONCE, instantly returned on second visit.
-```
-
-### Zobrist Hashing
-
-A Zobrist hash converts the board to a 64-bit integer in O(n):
-
+**Key design — lock state included in hash:**
 ```java
-// R3Algorithms.java
 private long getBoardHash(boolean[] board) {
     long hash = 0L;
     for (int i = 0; i < totalTiles; i++) {
-        if (board[i])          hash ^= zobristTile[i];  // Tile ownership
-        if (rules.isLocked(i)) hash ^= zobristLock[i];  // Lock state (Tabu)
+        if (board[i])          hash ^= zobristTile[i]; // tile ownership
+        if (rules.isLocked(i)) hash ^= zobristLock[i]; // Tabu lock state
     }
     return hash;
 }
 ```
 
-**Why include lock state?** Board A and Board B with identical tiles but different locked tiles have different legal moves → they are different game states. Hashing only tile ownership would produce incorrect cache hits.
+**Why include lock state?** Board A (tile 5 locked) and Board B (same tiles, tile 5 unlocked) have different legal moves. Using B's cached score for A would return a wrong result. Including lock state → **zero false cache hits**.
 
-**Collision probability:** ≈ 1/2^64 ≈ 5×10⁻²⁰ — negligible for a game.
-
-### Transposition Table with Bounds
-
-The table stores not just a score but also whether it's an exact value, lower bound, or upper bound (standard enhancement):
-
-```java
-private final HashMap<Long, double[]> ttTable = new HashMap<>();
-// Entry: {score, depth, nodeType}
-// nodeType: 0=exact, 1=lower-bound (α-cutoff), 2=upper-bound (β-cutoff)
-```
-
-```java
-// Inside alphaBeta()
-if (ttTable.containsKey(hash)) {
-    double[] entry = ttTable.get(hash);
-    if (entry[1] >= depth) {         // Stored at sufficient depth
-        log("  [TT HIT] d=" + depth);
-        if (nodeType == 0) return storedScore;           // Exact match
-        if (nodeType == 1) alpha = max(alpha, stored);   // Tighten alpha
-        if (nodeType == 2) beta  = min(beta,  stored);   // Tighten beta
-        if (beta <= alpha) return storedScore;           // Prune via TT
-    }
-}
-```
-
-### Complexity
-
-| Operation | Complexity |
-|-----------|-----------|
-| Hash computation | O(n) |
-| Table lookup | O(1) average (HashMap) |
-| Table store | O(1) average |
-| Memory | O(unique states visited) |
+| Metric | Value |
+|--------|-------|
+| Hash Complexity | O(n) |
+| Lookup | O(1) — HashMap |
+| Collision Probability | ~1 / 2^64 ≈ 0 |
 
 ---
 
-## 5. Algorithm 4 — BALAJI: Bottom-Up Bitmask DP Oracle (4×4)
+### 3.4 ALGORITHM 4 — BALAJI: Bottom-Up Bitmask DP Oracle (4×4)
 
-### State Space
+**File:** [R3Algorithms.java](file:///d:/DAA/src/main/java/com/flipwars/R3Algorithms.java)
 
-A 4×4 board has 16 tiles. Each tile is true/false → 2^16 = **65,536 possible states**.
+**What:** Precomputes the exact minimum number of moves to reach a winning state for all 65,536 possible 4×4 board configurations. This is a true **Bottom-Up Dynamic Programming** solution — no approximation.
 
+**State representation:** A 4×4 board has 16 binary tiles → 2^16 = 65,536 states fit in `int[65536]`.
+
+**BFS from goal states (backward induction):**
 ```
-State 0x0000 = 0000000000000000 = all CPU (game over, CPU wins)
-State 0xFFFF = 1111111111111111 = all Player (game over, Player wins)
-State 0x3A7B = some mid-game position
-```
+exactSolver[0x0000] = 0  (all-CPU: winner!)
+exactSolver[0xFFFF] = 0  (all-Player: winner!)
 
-This fits in a single `int[65536]` array (256KB) — tiny.
-
-### Bottom-Up BFS Algorithm
-
-Instead of computing "how far from current state to goal?", we work in **reverse** — broadcast distances backward from all goal states simultaneously:
-
-```
-Step 0: Mark winning states (exactSolver[0x0000] = 0, exactSolver[0xFFFF] = 0)
-Step 1: All states reachable in 1 flip from a goal → distance = 1
-Step 2: All unvisited states reachable from distance-1 states → distance = 2
-...
+BFS level 1: all states reachable in 1 flip from {0, 0xFFFF}
+BFS level 2: all states reachable in 2 flips from level-1 states
+...until all 65,536 states assigned a distance
 ```
 
-```java
-// R3Algorithms.java — precompute4x4Oracle()
-// Precompute flip masks (16-bit XOR for each tile click)
-int[] flipMask = new int[16];
-for (int i = 0; i < 16; i++) {
-    int mask = (1 << i);  // self
-    int row = i / 4, col = i % 4;
-    if (row > 0) mask |= (1 << (i - 4));  // up
-    if (row < 3) mask |= (1 << (i + 4));  // down
-    if (col > 0) mask |= (1 << (i - 1));  // left
-    if (col < 3) mask |= (1 << (i + 1));  // right
-    flipMask[i] = mask;
-}
-
-// BFS from goal states
-exactSolver[0] = exactSolver[0xFFFF] = 0;
-bfsQueue.add(0); bfsQueue.add(0xFFFF);
-
-while (!bfsQueue.isEmpty()) {
-    int state = bfsQueue.poll();
-    int dist  = exactSolver[state];
-    for (int tile = 0; tile < 16; tile++) {
-        int prev = state ^ flipMask[tile];  // XOR = predecessor (flip is inverse)
-        if (exactSolver[prev] == -1) {
-            exactSolver[prev] = dist + 1;
-            bfsQueue.add(prev);
-        }
-    }
-}
-```
-
-### O(1) Oracle Lookup
-
-After precomputation, finding the best hint move is O(16) = O(1):
-
+**Hint lookup — O(1):**
 ```java
 private int getExactWinMove(int boardState) {
     int bestMove = -1, bestDist = Integer.MAX_VALUE;
     for (int tile = 0; tile < 16; tile++) {
-        if (rules.isLocked(tile) || rules.isDeadTile(tile)) continue;
-        int nextState = boardState ^ flipMask[tile];
+        if (rules.isLocked(tile)) continue;
+        int nextState = boardState ^ flipMask[tile];  // bitmask XOR = instant flip
         if (exactSolver[nextState] < bestDist) {
             bestDist = exactSolver[nextState];
             bestMove = tile;
@@ -284,135 +345,112 @@ private int getExactWinMove(int boardState) {
 }
 ```
 
-### Threading (Non-Blocking Startup)
+**Threading:** BFS runs in a daemon background thread at startup. `volatile boolean oracleReady` gates usage. Falls back to Alpha-Beta transparently if called before BFS completes.
 
-The BFS runs on a daemon background thread at startup:
-
-```java
-Thread oracleThread = new Thread(() -> {
-    precompute4x4Oracle();       // ~10ms, O(65536 × 16) ops
-    oracleReady = true;          // volatile — visible to all threads
-}, "Oracle-BFS-Thread");
-oracleThread.setDaemon(true);   // Won't block JVM exit
-oracleThread.start();
-```
-
-If `getPlayerHintR3()` is called before the oracle is ready, it transparently falls back to Alpha-Beta.
-
-### Complexity
-
-| Phase | Time | Space |
-|-------|------|-------|
-| Precomputation | O(65536 × 16) ≈ O(1M) | O(65536) = 256 KB |
-| Single lookup | O(16) = **O(1)** | O(1) |
+| Metric | Value |
+|--------|-------|
+| Precomputation | O(65536 × 16) = O(1M) < 50ms |
+| Hint lookup | O(16) = O(1) |
+| Space | O(65536) ≈ 256KB |
 
 ---
 
-## 6. How All 4 Algorithms Work Together
+## 🔵 4. Dynamic Obstacles — Black Holes
+
+### Effect on Each Algorithm
+
+| Algorithm | Effect of Black Holes |
+|-----------|----------------------|
+| **Graph (Adjacency)** | BH tiles have empty neighbor lists → no edges in/out |
+| **DFS Clusters** | DFS never traverses into BH → natural component splitting |
+| **Spatial D&C (Quadrants)** | BH IDs skipped in subgrid scoring → no phantom CPU score |
+| **Threat Detection** | BH tiles skipped → no false threat counts |
+| **Strategic Value** | `getTileStrategicValue(BH)` returns 0.0 |
+| **Alpha-Beta** | BH tiles excluded from available moves list |
+
+### Why This Demonstrates Irregular Graph Handling
+
+Standard grid graphs are **regular** (every interior node has degree 4). With Black Holes, nodes adjacent to them have **reduced degree**. The DFS, BFS, and Alpha-Beta all work correctly on this irregular structure without any algorithm-level changes — only the graph topology changes at construction.
+
+---
+
+## 5. Version Comparison (R1 vs R2 vs R3)
+
+| Feature | R1: Greedy | R2: D&C | R3: DP + BT |
+|---------|-----------|---------|------------|
+| **CPU Move** | Greedy + 15% blunder | Tournament Selection O(n²) | Alpha-Beta Minimax |
+| **Player Hint** | Merge Sort | Merge Sort + D&C eval | Oracle O(1) (4×4) / Alpha-Beta |
+| **Lookahead** | 0 (single move) | 0 (single move) | 3–6 moves deep |
+| **Memory** | None | None | Transposition Table |
+| **Black Holes** | ❌ | ❌ | ✅ |
+| **Brain Scanner** | ❌ | ❌ | ✅ |
+| **Difficulty** | Easy | Medium | Hard |
+
+---
+
+## 6. Complete Complexity Summary (R3)
+
+| Algorithm | Time | Space | Recurrence |
+|-----------|------|-------|------------|
+| doMove / undoMove (Suhas) | O(k), k≤5 | O(1) | — |
+| Alpha-Beta Minimax (Maneesh) | O(b^(d/2)) with ordering | O(d) | T(n,d)=nT(n,d-1) |
+| Zobrist Hash (Ganesh) | O(n) per hash | O(n) table | — |
+| TT Lookup (Ganesh) | O(1) | O(states visited) | — |
+| Oracle BFS (Balaji) | O(2^16 × 16) pre | O(2^16) | BFS |
+| Oracle Hint (Balaji) | O(16) = O(1) | O(1) | — |
+| Black Hole Graph init | O(n) | O(n) | — |
+
+**Total per CPU move (4×4):** O(1) Oracle hit or O(√b^d) with α-β — far faster than R2's O(n²) for deep lookahead.
+
+---
+
+## 7. Architecture (Review 3)
 
 ```
-getPlayerHintR3() / getBestMoveR3()
-         │
-         ▼
-   ┌─────────────────────────────────┐
-   │  4×4 + oracleReady?             │
-   │  YES → BALAJI Oracle O(1)       │
-   │  NO  → Alpha-Beta search        │
-   └─────────────────────────────────┘
-                    │
-                    ▼
-         alphaBeta(board, depth, α, β)
-         │
-         ├─ GANESH: Check ttTable[hash]
-         │  HIT → return cached score instantly
-         │  MISS → continue search
-         │
-         ├─ MANEESH: Order candidate moves (R2 heuristic, best first)
-         │
-         └─ For each ordered move:
-              SUHAS: doMove(board, move)   ← in-place, O(1) space
-              recursive alphaBeta(...)
-              SUHAS: undoMove(board, move) ← XOR restore
-              MANEESH: α-β prune if β ≤ α
-              GANESH: Store result in ttTable
+┌──────────────────────────────┐
+│          Main.java           │
+│  UI + Game Loop              │
+│  + blackHoles: Set<Integer>  │
+│  + logBrain(String)          │
+│  + Brain Scanner TextArea    │
+└───────┬──────────────────────┘
+        │ Consumer<String> logger injected
+        v
+┌───────────────────────┐       ┌──────────────────────────┐
+│      Engine.java      │──────►│    DACAlgorithms.java    │
+│  R1 Greedy            │       │  Spatial + DFS +         │
+│  R2 D&C               │       │  Tournament + Threat     │
+│  R3 → R3Algorithms    │       │  (logger-aware)          │
+└───────┬───────────────┘       └──────────────────────────┘
+        │
+        v
+┌──────────────────────────────┐
+│       R3Algorithms.java      │
+│  SUHAS   — doMove/undoMove   │
+│  MANEESH — Alpha-Beta        │
+│  GANESH  — Zobrist TT        │
+│  BALAJI  — Bitmask DP Oracle │
+└───────┬──────────────────────┘
+        │ uses
+        v
+┌─────────────────┐    ┌──────────────────────┐
+│   Graph.java    │    │      Rules.java       │
+│  Adjacency List │    │  Tabu + Scoring       │
+│  BH-aware edges │    │  BH-aware evaluation  │
+└─────────────────┘    └──────────────────────┘
 ```
 
 ---
 
-## 7. Dynamic Obstacles — Black Hole Tiles
+## 8. Conclusion
 
-At every game start, 1–2 tiles are randomly designated as **Black Holes**:
+| # | Algorithm | Paradigm | Who | Used For |
+|---|-----------|----------|-----|----------|
+| 1 | **doMove / undoMove** | Backtracking | Suhas | In-place search tree traversal |
+| 2 | **Alpha-Beta Minimax** | Branch & Bound | Maneesh | CPU move selection (depth 3–6) |
+| 3 | **Zobrist Transposition Table** | Top-Down DP | Ganesh | Overlapping subproblem caching |
+| 4 | **Bitmask DP Oracle** | Bottom-Up DP | Balaji | O(1) perfect 4×4 hints |
+| 5 | **Black Holes** | Irregular Graphs | Feature | Dynamic topology disruption |
+| 6 | **Brain Scanner** | Observability | Feature | Real-time AI reasoning log |
 
-- **Cannot be clicked** — blocked in `handlePlayerMove()`
-- **Cannot be flipped** — skipped in `performFlip()`
-- **Skipped by all AIs** — filtered in `getAvailableMoves()`
-- **Rendered as dark pits** — custom `TileButton` coloring in `updateBoardUI()`
-
-**Why this impresses:** It proves that `Graph.java` (adjacency list) and `DACAlgorithms.evaluateClusters()` (DFS) handle **irregular, non-symmetric graphs** without any code changes — the algorithms are graph-general by design.
-
----
-
-## 8. R3 Brain Scanner — Thread Safety
-
-The Alpha-Beta search runs on a background `Thread` (same as R2's CPU thinking thread). Logging to a Swing `JTextArea` from a non-EDT thread would cause race conditions and visual corruption.
-
-**Solution:** `SwingUtilities.invokeLater()` queues UI updates onto the Event Dispatch Thread:
-
-```java
-private void logBrain(String msg) {
-    SwingUtilities.invokeLater(() -> {   // EDT-safe
-        brainLog.append(msg + "\n");
-        brainLog.setCaretPosition(brainLog.getDocument().getLength());
-    });
-}
-```
-
-**Panel explanation:** *"Our AI search runs on asynchronous background threads to prevent UI freezing. All Brain Scanner updates are marshalled back to the Event Dispatch Thread via `invokeLater()`, ensuring thread safety without locks."*
-
----
-
-## 9. Complete Complexity Summary (All 3 Reviews)
-
-| Algorithm | Version | Time | Space | Paradigm |
-|-----------|---------|------|-------|---------|
-| Greedy (tile count) | R1 | O(n) | O(1) | Greedy |
-| Merge Sort | R1, R2 | O(n log n) | O(n) | D&C |
-| Spatial D&C (Quadrants) | R2 | O(n) | O(1) | D&C — Spatial |
-| DFS Clusters | R2 | O(V+E) | O(n) | D&C — Structural |
-| Tournament Selection | R2 | O(n) | O(log n) | D&C — Search Space |
-| Threat Detection | R2 | O(n) | O(1) | D&C — Scoring |
-| **Pure Backtracking** | **R3** | **O(b^d)** | **O(d)** | **Backtracking** |
-| **Alpha-Beta Minimax** | **R3** | **O(b^(d/2))** | **O(d)** | **Branch & Bound** |
-| **Zobrist TT (Memoization)** | **R3** | **O(1) per hit** | **O(states)** | **Top-Down DP** |
-| **Bitmask Oracle (BFS DP)** | **R3** | **O(1) lookup** | **O(2^n)** | **Bottom-Up DP** |
-
----
-
-## 10. Architecture (Updated for R3)
-
-```
-Main.java ──────────────────► Engine.java ──────────────► DACAlgorithms.java
-(UI: 3D TileButton,           (Version Router:             (5 D&C algorithms:
- Brain Scanner,                R1 Greedy +                  Spatial, DFS,
- Black Hole tiles,             R2 D&C +                     Tournament,
- logBrain() EDT logger)        R3 DP+BT)                    Threat, Merge Sort)
-      │                              │
-      │                              ▼
-      │                      R3Algorithms.java
-      │                      ┌─────────────────────┐
-      │                      │ Suhas: doMove/undoMove│
-      │                      │ Maneesh: alphaBeta   │
-      │                      │ Ganesh: Zobrist TT   │
-      │                      │ Balaji: 4×4 Oracle   │
-      │                      └─────────────────────┘
-      │                              │
-      └──────────┬───────────────────┘
-                 ▼
-          Rules.java ◄──── Graph.java
-       (Tabu + Black Holes)  (Adjacency Lists)
-       (Strategic Values)     (O(1) neighbor lookup)
-             │
-             ▼
-       TileButton.java
-       (3D paint: shadow/face/glare)
-```
+**Key takeaway for the viva:** R3 is not just "smarter AI" — it is a fundamentally different problem formulation. R1 and R2 are **single-step heuristics**. R3 is a **multi-step state-space search** with provably correct play (Oracle) and polynomial-time approximation (Alpha-Beta), unified by the mathematical property that XOR is its own inverse.

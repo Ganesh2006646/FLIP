@@ -37,9 +37,13 @@ public class Engine {
     private final int totalTiles;
     private final Graph graph;
     private final Rules rules;
-    private final DACAlgorithms dac;
+    private DACAlgorithms dac; // non-final: logger can be reinjected
     private final R3Algorithms r3; // R3: DP + Backtracking engine
     private final int gridSize;
+
+    /** Brain Scanner logger — forwards AI reasoning to the UI text area. */
+    private Consumer<String> logger = msg -> {
+    }; // default: silent
 
     /** Current algorithm version: 1 = R1 Greedy, 2 = R2 D&C, 3 = R3 (future) */
     private int version = 2;
@@ -51,6 +55,29 @@ public class Engine {
         this.dac = new DACAlgorithms();
         this.gridSize = (int) Math.sqrt(totalTiles);
         this.r3 = new R3Algorithms(this.gridSize, graph, rules);
+    }
+
+    /**
+     * Brain-Scanner-aware constructor.
+     * The logger is forwarded to DACAlgorithms so Tournament Selection
+     * comparisons appear live in the Brain Scanner text area.
+     */
+    public Engine(int totalTiles, Graph graph, Rules rules, Consumer<String> logger) {
+        this.totalTiles = totalTiles;
+        this.graph = graph;
+        this.rules = rules;
+        this.logger = logger;
+        this.dac = new DACAlgorithms(logger);
+        this.gridSize = (int) Math.sqrt(totalTiles);
+        this.r3 = new R3Algorithms(this.gridSize, graph, rules);
+    }
+
+    /**
+     * Re-injects the logger at runtime (e.g., after Brain Scanner panel is built).
+     */
+    public void setLogger(Consumer<String> logger) {
+        this.logger = logger;
+        this.dac = new DACAlgorithms(logger);
     }
 
     /**
@@ -69,16 +96,6 @@ public class Engine {
     /** Returns the currently active version. */
     public int getVersion() {
         return version;
-    }
-
-    /**
-     * Wires the Brain Scanner logger into R3Algorithms.
-     * Called by Main after the brainLog TextArea is built.
-     * 
-     * @param logger Thread-safe consumer that appends to the Brain Scanner UI
-     */
-    public void setR3Logger(Consumer<String> logger) {
-        r3.setLogger(logger);
     }
 
     // =========================================================================
@@ -163,7 +180,7 @@ public class Engine {
     private int getBestMoveR2(boolean[] currentState) {
         List<Integer> availableMoves = new ArrayList<>();
         for (int i = 0; i < totalTiles; i++) {
-            if (!rules.isLocked(i) && !rules.isDeadTile(i))
+            if (!rules.isLocked(i))
                 availableMoves.add(i);
         }
         if (availableMoves.isEmpty())
@@ -179,23 +196,24 @@ public class Engine {
      */
     private int getPlayerHintR2(boolean[] currentState) {
         List<int[]> tileScores = new ArrayList<>();
-
         for (int i = 0; i < totalTiles; i++) {
-            if (rules.isLocked(i) || rules.isDeadTile(i))
+            if (rules.isLocked(i))
                 continue;
-
             boolean[] temp = currentState.clone();
             simulateFlip(temp, i);
             double score = evaluateStateCombined(temp, true);
             tileScores.add(new int[] { i, (int) (score * 1000) });
         }
-
         // Merge Sort D&C: O(n log n) — full ranking
         if (!tileScores.isEmpty()) {
             mergeSort(tileScores, 0, tileScores.size() - 1);
         }
-
-        return tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
+        int topTile = tileScores.isEmpty() ? -1 : tileScores.get(0)[0];
+        // ── BRAIN SCANNER ──────────────────────────────────────────────
+        logger.accept(String.format(
+                "[Merge Sort D&C] Ranked %d moves. Top recommended move: Tile %d",
+                tileScores.size(), topTile));
+        return topTile;
     }
 
     /**
@@ -238,7 +256,7 @@ public class Engine {
         if (new Random().nextDouble() < 0.15) {
             List<Integer> valid = new ArrayList<>();
             for (int i = 0; i < totalTiles; i++) {
-                if (!rules.isLocked(i) && !rules.isDeadTile(i))
+                if (!rules.isLocked(i))
                     valid.add(i);
             }
             if (!valid.isEmpty())
@@ -247,7 +265,7 @@ public class Engine {
 
         List<int[]> tileScores = new ArrayList<>();
         for (int i = 0; i < totalTiles; i++) {
-            if (rules.isLocked(i) || rules.isDeadTile(i))
+            if (rules.isLocked(i))
                 continue;
             boolean[] temp = currentState.clone();
             simulateFlip(temp, i);
@@ -265,7 +283,7 @@ public class Engine {
     private int getPlayerHintR1(boolean[] currentState) {
         List<int[]> tileScores = new ArrayList<>();
         for (int i = 0; i < totalTiles; i++) {
-            if (rules.isLocked(i) || rules.isDeadTile(i))
+            if (rules.isLocked(i))
                 continue;
             boolean[] temp = currentState.clone();
             simulateFlip(temp, i);

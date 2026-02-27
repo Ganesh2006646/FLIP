@@ -4,10 +4,10 @@ import java.awt.Color;
 import java.util.*;
 
 /**
- * Game Rules Engine — Tabu Search & Strategic Weighting.
+ * Game Rules Engine — Tabu Search, Strategic Weighting, Black Hole Awareness.
  * <p>
  * Manages the lock/tabu mechanic and assigns strategic values to tiles.
- * Uses {@link LinkedHashSet} for O(1) lookup instead of O(n) with LinkedList.
+ * Black Hole tiles return a value of 0.0 and are never added to the Tabu set.
  * </p>
  *
  * <h2>Lock Mechanic (Tabu Search):</h2>
@@ -23,6 +23,7 @@ import java.util.*;
  * <li>Edges: +15</li>
  * <li>Standard: +5</li>
  * <li>Near-Corners (Traps): -5 (dangerous positions)</li>
+ * <li>Black Holes: 0.0 (neutral — excluded from scoring)</li>
  * </ul>
  *
  * @see Engine
@@ -31,30 +32,34 @@ public class Rules {
     private final int tabuSize;
     private final LinkedHashSet<Integer> tabuSet = new LinkedHashSet<>(); // O(1) contains()
     private final int gridSize;
+    private final Set<Integer> blackHoles;
+
+    public static final Color COLOR_PLAYER = new Color(241, 196, 15); // Yellow
+    public static final Color COLOR_CPU = new Color(127, 140, 141); // Grey
+
+    /** Constructs Rules with no black holes. */
+    public Rules(int gridSize) {
+        this(gridSize, Collections.emptySet());
+    }
 
     /**
-     * DYNAMIC OBSTACLES — "Black Hole" tiles.
-     * Dead tiles cannot be clicked, flipped, or owned by any player.
-     * They persist for the entire game and are regenerated each new game.
-     * Proves that our Graph + DFS Cluster algorithms handle irregular grids.
+     * Constructs Rules with Black Hole awareness.
+     * Black Holes are never locked (can't be clicked) and always score 0.
+     *
+     * @param gridSize   Size of the grid
+     * @param blackHoles Set of tile IDs that are permanently dead
      */
-    private final Set<Integer> deadTiles = new HashSet<>();
-
-    // Vivid Nintendo-style Arcade Colors
-    public static final Color COLOR_PLAYER = new Color(255, 60, 60); // Vivid Neon Red
-    public static final Color COLOR_CPU = new Color(41, 128, 255); // Vivid Bright Blue
-
-    public Rules(int gridSize) {
+    public Rules(int gridSize, Set<Integer> blackHoles) {
         this.gridSize = gridSize;
+        this.blackHoles = blackHoles;
         this.tabuSize = Math.max(2, (gridSize * gridSize) / 4);
     }
 
     public void recordMove(int tileId) {
-        // Remove if exists (to maintain order)
+        if (blackHoles.contains(tileId))
+            return; // Black holes are never recorded
         tabuSet.remove(tileId);
         tabuSet.add(tileId);
-
-        // Remove oldest if over capacity
         if (tabuSet.size() > tabuSize) {
             Iterator<Integer> it = tabuSet.iterator();
             if (it.hasNext()) {
@@ -65,16 +70,20 @@ public class Rules {
     }
 
     public boolean isLocked(int tileId) {
-        return tabuSet.contains(tileId); // O(1) instead of O(n)!
+        // Black holes always behave as locked (unclickable)
+        if (blackHoles.contains(tileId))
+            return true;
+        return tabuSet.contains(tileId); // O(1)
     }
 
     public int getLockCountdown(int tileId) {
+        if (blackHoles.contains(tileId))
+            return 0;
         if (!tabuSet.contains(tileId))
             return 0;
-
         int index = 0;
         for (Integer id : tabuSet) {
-            if (id == tileId)
+            if (id.equals(tileId))
                 return index + 1;
             index++;
         }
@@ -85,44 +94,30 @@ public class Rules {
         tabuSet.clear();
     }
 
-    // ---- Black Hole / Dead Tile API ----
-
-    /** Permanently marks a tile as a dead Black Hole for this game. */
-    public void addDeadTile(int id) {
-        deadTiles.add(id);
-    }
-
-    /** Returns true if this tile is a Black Hole (permanently unplayable). */
-    public boolean isDeadTile(int id) {
-        return deadTiles.contains(id);
-    }
-
-    /** Clears all Black Holes — call at the start of each new game. */
-    public void clearDeadTiles() {
-        deadTiles.clear();
-    }
-
-    /** Returns an immutable view of all current dead tile IDs. */
-    public Set<Integer> getDeadTiles() {
-        return Collections.unmodifiableSet(deadTiles);
-    }
-
+    /**
+     * Returns the strategic tile value.
+     * Black Holes always return 0.0 — they have no ownership and contribute
+     * no score, preventing the AI from treating them as free CPU tiles.
+     */
     public double getTileStrategicValue(int id) {
+        // BLACK HOLE: zero value — ignored by all scoring algorithms
+        if (blackHoles.contains(id))
+            return 0.0;
+
         int r = id / gridSize;
         int c = id % gridSize;
 
-        // Corners: 25.0
         if ((r == 0 || r == gridSize - 1) && (c == 0 || c == gridSize - 1))
-            return 25.0;
-
-        // Edges: 15.0
+            return 25.0; // Corners
         if (r == 0 || r == gridSize - 1 || c == 0 || c == gridSize - 1)
-            return 15.0;
-
-        // Near-Corners (Traps): -5.0
+            return 15.0; // Edges
         if ((r <= 1 || r >= gridSize - 2) && (c <= 1 || c >= gridSize - 2))
-            return -5.0;
-
+            return -5.0; // Traps
         return 5.0; // Standard
+    }
+
+    /** Returns true if the given tile is a Black Hole. */
+    public boolean isBlackHole(int tileId) {
+        return blackHoles.contains(tileId);
     }
 }

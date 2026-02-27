@@ -1,7 +1,6 @@
 package com.flipwars;
 
 import java.util.*;
-import java.util.function.Consumer;
 
 /**
  * ============================================================================
@@ -85,16 +84,6 @@ public class R3Algorithms {
      */
     private volatile boolean oracleReady = false;
 
-    // ---- BRAIN SCANNER: Thread-safe logging ---------------------------------
-    /**
-     * Logger callback — receives algorithm decision strings.
-     * Defaults to a no-op; set via setLogger() to wire up the Brain Scanner UI.
-     * SwingUtilities.invokeLater() is called by the UI side (Main.logBrain),
-     * so this Consumer just fires the message without worrying about threads.
-     */
-    private Consumer<String> logger = msg -> {
-    }; // no-op default
-
     // =========================================================================
     // CONSTRUCTOR
     // =========================================================================
@@ -148,20 +137,6 @@ public class R3Algorithms {
             oracleThread.setDaemon(true); // Won't prevent JVM exit
             oracleThread.start();
         }
-    }
-
-    /**
-     * Sets the Brain Scanner logger. Called by Engine after construction.
-     * Messages are emitted at: TT hits, α-β prune moments, Oracle lookups.
-     */
-    public void setLogger(Consumer<String> logger) {
-        this.logger = (logger != null) ? logger : msg -> {
-        };
-    }
-
-    /** Emits a log message via the Brain Scanner callback. */
-    private void log(String msg) {
-        logger.accept(msg);
     }
 
     // =========================================================================
@@ -223,9 +198,7 @@ public class R3Algorithms {
         // ---- BALAJI: Oracle path (4x4 only) ---------------------------------
         if (gridSize == 4 && oracleReady) {
             int state = boardToInt(board);
-            int hint = getExactWinMove(state);
-            log("[ORACLE] 4x4 exact lookup → tile " + hint);
-            return hint;
+            return getExactWinMove(state);
         }
         // Fallback: Alpha-Beta for 5x5, 6x6, or while Oracle is still computing.
         return getBestMoveR3(board, true);
@@ -346,16 +319,14 @@ public class R3Algorithms {
             double nodeType = entry[2];
 
             if (storedDepth >= depth) {
-                // GANESH: Transposition Table HIT — return cached result instantly
-                log("  [TT HIT] d=" + depth + " score=" + String.format("%.1f", storedScore));
                 if (nodeType == 0)
-                    return storedScore;
+                    return storedScore; // Exact hit
                 if (nodeType == 1)
-                    alpha = Math.max(alpha, storedScore);
+                    alpha = Math.max(alpha, storedScore); // Lower bound
                 if (nodeType == 2)
-                    beta = Math.min(beta, storedScore);
+                    beta = Math.min(beta, storedScore); // Upper bound
                 if (beta <= alpha)
-                    return storedScore;
+                    return storedScore; // Pruned via TT
             }
         }
 
@@ -384,11 +355,10 @@ public class R3Algorithms {
 
                 bestScore = Math.max(bestScore, val);
                 alpha = Math.max(alpha, bestScore);
-                if (beta <= alpha) {
-                    // MANEESH: α-β PRUNE (β-cut) — minimizer won't pick this
-                    log("  [α-β CUT] β=" + String.format("%.1f", beta) + " ≤ α=" + String.format("%.1f", alpha));
-                    break;
-                }
+
+                // ---- Alpha-Beta cut-off (β-cut): minimizer won't choose this branch
+                if (beta <= alpha)
+                    break; // ← The actual "prune" moment
             }
         } else {
             // Minimizing player (CPU): pick the move with the lowest score
@@ -400,11 +370,10 @@ public class R3Algorithms {
 
                 bestScore = Math.min(bestScore, val);
                 beta = Math.min(beta, bestScore);
-                if (beta <= alpha) {
-                    // MANEESH: α-β PRUNE (α-cut) — maximizer won't pick this
-                    log("  [α-β CUT] β=" + String.format("%.1f", beta) + " ≤ α=" + String.format("%.1f", alpha));
-                    break;
-                }
+
+                // ---- Alpha-Beta cut-off (α-cut): maximizer won't choose this branch
+                if (beta <= alpha)
+                    break; // ← The actual "prune" moment
             }
         }
 
@@ -584,8 +553,8 @@ public class R3Algorithms {
 
         // Precompute flip mask inline for the current board (reuse 4x4 logic)
         for (int tile = 0; tile < 16; tile++) {
-            if (rules.isLocked(tile) || rules.isDeadTile(tile))
-                continue; // Respect Tabu + Black Holes
+            if (rules.isLocked(tile))
+                continue; // Respect Tabu locks
 
             // Compute the resulting state after flipping this tile
             int row = tile / 4, col = tile % 4;
@@ -623,8 +592,7 @@ public class R3Algorithms {
     private List<Integer> getAvailableMoves() {
         List<Integer> moves = new ArrayList<>();
         for (int i = 0; i < totalTiles; i++) {
-            // Skip both Tabu-locked tiles AND permanent Black Hole dead tiles
-            if (!rules.isLocked(i) && !rules.isDeadTile(i))
+            if (!rules.isLocked(i))
                 moves.add(i);
         }
         return moves;

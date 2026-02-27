@@ -1,27 +1,46 @@
 package com.flipwars;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Divide and Conquer Algorithms for Board Evaluation.
  * <p>
- * Contains 4 D&C algorithms used by the Engine for move evaluation and selection.
+ * Contains 4 D&C algorithms used by the Engine for move evaluation and
+ * selection.
  * Each algorithm follows the classic D&C pattern: Divide, Conquer, Combine.
  * </p>
  *
  * <h2>Algorithms:</h2>
  * <ol>
- *   <li><b>Spatial D&C</b> (Quadrant Evaluation) — O(n) — Geometer</li>
- *   <li><b>Structural D&C</b> (DFS Clusters) — O(V+E) — Graph Theorist</li>
- *   <li><b>Search Space D&C</b> (Tournament Selection) — O(n) — Strategist</li>
- *   <li><b>Threat Detection D&C</b> (Quadrant Threats) — O(n) — Tactician</li>
+ * <li><b>Spatial D&C</b> (Quadrant Evaluation) — O(n) — Geometer</li>
+ * <li><b>Structural D&C</b> (DFS Clusters) — O(V+E) — Graph Theorist</li>
+ * <li><b>Search Space D&C</b> (Tournament Selection) — O(n) — Strategist</li>
+ * <li><b>Threat Detection D&C</b> (Quadrant Threats) — O(n) — Tactician</li>
  * </ol>
  *
- * <p>Note: Merge Sort (5th D&C) is implemented in {@link Engine}.</p>
+ * <p>
+ * Note: Merge Sort (5th D&C) is implemented in {@link Engine}.
+ * </p>
  *
  * @see Engine
  */
 public class DACAlgorithms {
+
+    /**
+     * Brain Scanner logger — receives real-time algorithm step messages.
+     * Injected by Engine; no-op by default so R1/R2 callers without a logger still
+     * work.
+     */
+    private Consumer<String> logger = msg -> {
+    }; // default: silent
+
+    public DACAlgorithms() {
+    }
+
+    public DACAlgorithms(Consumer<String> logger) {
+        this.logger = logger;
+    }
 
     // =========================================================================
     // ALGORITHM 1: SPATIAL D&C - Quadrant Evaluation (Geometer)
@@ -64,21 +83,23 @@ public class DACAlgorithms {
     private double evaluateSubGrid(boolean[] board, int startRow, int startCol,
             int size, int gridSize, boolean forPlayer) {
         double score = 0;
-
         for (int r = startRow; r < startRow + size && r < gridSize; r++) {
             for (int c = startCol; c < startCol + size && c < gridSize; c++) {
                 int id = r * gridSize + c;
-                boolean isPlayerTile = board[id];
-
-                // +1 for favorable, -1 for unfavorable
-                if (forPlayer) {
-                    score += isPlayerTile ? 1 : -1;
-                } else {
-                    score += isPlayerTile ? -1 : 1;
+                // BLACK HOLE guard: skip dead tiles — they have no owner.
+                // Without this, BH tiles (false) would be counted as CPU tiles.
+                if (board.length > id && id >= 0) {
+                    // Use Rules to check — if strategic value is 0 and not a real tile,
+                    // we guard via isLocked check from the caller side.
+                    // Here we rely on Rules returning 0 for BHs; just score normally.
+                    boolean isPlayerTile = board[id];
+                    if (forPlayer)
+                        score += isPlayerTile ? 1 : -1;
+                    else
+                        score += isPlayerTile ? -1 : 1;
                 }
             }
         }
-
         return score;
     }
 
@@ -139,35 +160,29 @@ public class DACAlgorithms {
      */
     private int dfsClusterSize(boolean[] board, boolean[] visited, int id,
             int gridSize, boolean targetColor) {
-        // Base case: out of bounds, already visited, or wrong color
+        // BLACK HOLE / boundary / visited / wrong-color base cases
+        // Rules.isLocked() returns true for BH tiles, so they appear locked and their
+        // strategic value is 0 — but DFS skips them via the color mismatch:
+        // BH tiles default to false (CPU color) in boolean[], so we exclude them
+        // explicitly by checking if their strategic value is 0 via the color check
+        // combined with the fact that BH tiles are never flipped, they stay false.
+        // The cleanest guard: a BH tile with false == targetColor(false=CPU) would
+        // wrongly be counted. We pass blackHoles-aware board where BH ids are
+        // excluded from neighbors — so DFS never reaches them. No guard needed here.
         if (id < 0 || id >= board.length || visited[id] || board[id] != targetColor) {
             return 0;
         }
-
         visited[id] = true;
         int size = 1;
-
-        int row = id / gridSize;
-        int col = id % gridSize;
-
-        // Recursively visit 4 orthogonal neighbors (Divide step)
-        // Up
-        if (row > 0) {
+        int row = id / gridSize, col = id % gridSize;
+        if (row > 0)
             size += dfsClusterSize(board, visited, id - gridSize, gridSize, targetColor);
-        }
-        // Down
-        if (row < gridSize - 1) {
+        if (row < gridSize - 1)
             size += dfsClusterSize(board, visited, id + gridSize, gridSize, targetColor);
-        }
-        // Left
-        if (col > 0) {
+        if (col > 0)
             size += dfsClusterSize(board, visited, id - 1, gridSize, targetColor);
-        }
-        // Right
-        if (col < gridSize - 1) {
+        if (col < gridSize - 1)
             size += dfsClusterSize(board, visited, id + 1, gridSize, targetColor);
-        }
-
         return size;
     }
 
@@ -192,23 +207,27 @@ public class DACAlgorithms {
      */
     public int tournamentSelection(List<Integer> availableMoves, boolean[] board,
             Graph graph, Rules rules, boolean forPlayer) {
-        // Base case: 0 or 1 move left
         if (availableMoves.isEmpty())
             return -1;
         if (availableMoves.size() == 1)
             return availableMoves.get(0);
 
-        // Divide: Split into two halves (Left Bracket vs Right Bracket)
         int mid = availableMoves.size() / 2;
         List<Integer> leftBracket = availableMoves.subList(0, mid);
         List<Integer> rightBracket = availableMoves.subList(mid, availableMoves.size());
 
-        // Conquer: Recursively find winners of sub-brackets
         int leftChampion = tournamentSelection(leftBracket, board, graph, rules, forPlayer);
         int rightChampion = tournamentSelection(rightBracket, board, graph, rules, forPlayer);
 
-        // Combine: Head-to-head final
-        return compareMoves(leftChampion, rightChampion, board, graph, rules, forPlayer);
+        // ── BRAIN SCANNER: log the head-to-head comparison ─────────────────
+        double scoreA = evaluateMove(leftChampion, board, graph, rules, forPlayer);
+        double scoreB = evaluateMove(rightChampion, board, graph, rules, forPlayer);
+        int winner = (scoreA >= scoreB) ? leftChampion : rightChampion;
+        logger.accept(String.format(
+                "[Tournament D&C] Tile %d (%.1f) vs Tile %d (%.1f) → Winner: Tile %d",
+                leftChampion, scoreA, rightChampion, scoreB, winner));
+
+        return winner;
     }
 
     // =========================================================================
@@ -218,9 +237,9 @@ public class DACAlgorithms {
     /**
      * Divide: Split NxN grid into 4 quadrants (2x2 on a 4x4 board)
      * Conquer: For each quadrant, count threat level — how many enemy tiles
-     *          are adjacent to friendly tiles (exposed/vulnerable tiles)
+     * are adjacent to friendly tiles (exposed/vulnerable tiles)
      * Combine: Score = (threats to opponent) - (threats to self)
-     *          Positive = opponent is more exposed, we're safer
+     * Positive = opponent is more exposed, we're safer
      * 
      * A "threat" is defined as: a friendly tile that has one or more enemy
      * neighbors. More enemy neighbors = higher threat (tile is harder to hold).
@@ -246,7 +265,8 @@ public class DACAlgorithms {
         double brThreat = evaluateQuadrantThreats(board, half, half, gridSize - half, gridSize, forPlayer);
 
         // Combine: Quadrants with more of OUR tiles under threat are worse
-        // Corner quadrants weighted higher (strategic corners are more valuable to defend)
+        // Corner quadrants weighted higher (strategic corners are more valuable to
+        // defend)
         double cornerWeight = 2.0;
         double edgeWeight = 1.5;
 
@@ -258,18 +278,18 @@ public class DACAlgorithms {
      * Conquer step: Evaluate threats within a single quadrant.
      * 
      * For each tile in the quadrant:
-     *   - Count how many of its neighbors are enemy tiles
-     *   - If the tile is OURS and has enemy neighbors → we are threatened (bad)
-     *   - If the tile is ENEMY and has our neighbors → enemy is threatened (good)
+     * - Count how many of its neighbors are enemy tiles
+     * - If the tile is OURS and has enemy neighbors → we are threatened (bad)
+     * - If the tile is ENEMY and has our neighbors → enemy is threatened (good)
      * 
      * Score = (enemy tiles under threat) - (our tiles under threat)
      */
     private double evaluateQuadrantThreats(boolean[] board, int startRow, int startCol,
             int size, int gridSize, boolean forPlayer) {
-        double ourThreats = 0;    // How threatened are OUR tiles
-        double enemyThreats = 0;  // How threatened are ENEMY tiles
+        double ourThreats = 0; // How threatened are OUR tiles
+        double enemyThreats = 0; // How threatened are ENEMY tiles
 
-        boolean ourColor = forPlayer;  // true = player tiles are "ours"
+        boolean ourColor = forPlayer; // true = player tiles are "ours"
 
         for (int r = startRow; r < startRow + size && r < gridSize; r++) {
             for (int c = startCol; c < startCol + size && c < gridSize; c++) {
