@@ -44,8 +44,10 @@ public class TileButton extends JButton {
 
         int width = getWidth();
         int height = getHeight();
-        int arc = 40; // Extremely rounded, bubble-tile corners
-        int depth = 16; // Thick 3D base (pixel height of the shadow)
+        // RESPONSIVE SCALING: arc and depth are % of tile's actual size.
+        // Hardcoded arc=40 on a tiny button becomes a circle — this prevents it.
+        int arc = width / 5; // Always 20% rounded corners
+        int depth = height / 6; // Always ~16% 3D thickness
 
         // --- Click Physics ---
         // When pressed, shift face layers down so the tile appears to sink into its
@@ -73,7 +75,7 @@ public class TileButton extends JButton {
         // Gives the tile extra depth, like a raised plastic edge.
         // =====================================================================
         g2.setColor(new Color(255, 255, 255, 60));
-        g2.setStroke(new BasicStroke(3f));
+        g2.setStroke(new BasicStroke(Math.max(1, width / 40f))); // Scales stroke with tile size
         g2.drawRoundRect(2, yOffset + 2, width - 4, height - depth - 4, arc, arc);
 
         // =====================================================================
@@ -83,11 +85,11 @@ public class TileButton extends JButton {
         // Moves with the face (same yOffset) so it stays "painted on" the tile.
         // =====================================================================
         g2.setColor(new Color(255, 255, 255, 140));
-        int glareW = width - 40;
-        int glareH = 12;
-        int glareX = 20;
-        int glareY = yOffset + 8;
-        g2.fillRoundRect(glareX, glareY, glareW, glareH, 10, 10);
+        int glareW = width - (arc * 2);
+        int glareH = height / 10;
+        int glareX = arc;
+        int glareY = yOffset + (height / 15);
+        g2.fillRoundRect(glareX, glareY, glareW, glareH, glareH, glareH);
 
         g2.dispose();
 

@@ -389,10 +389,12 @@ public class Main extends JFrame {
         JPanel grid = new JPanel(new GridLayout(gridSize, gridSize, 16, 16));
         grid.setOpaque(false); // Let grass green show through tile gaps
         int boardPixelSize = (gridSize == 4) ? 500 : (gridSize == 5) ? 600 : 700;
-        grid.setPreferredSize(new Dimension(boardPixelSize, boardPixelSize));
+        // Per-tile preferred size: cleaner than setting it on the whole grid panel
+        // and prevents GridBagLayout from shrinking tiles to fit the text label.
 
         for (int i = 0; i < totalTiles; i++) {
             TileButton b = new TileButton();
+            b.setPreferredSize(new Dimension(120, 120)); // Force big, chunky square tiles
             final int id = i;
             b.addActionListener(e -> handlePlayerMove(id));
             tileButtons[i] = b;
