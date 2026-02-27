@@ -40,8 +40,9 @@ public class Rules {
      */
     private final Set<Integer> deadTiles = new HashSet<>();
 
-    public static final Color COLOR_PLAYER = new Color(241, 196, 15); // Yellow
-    public static final Color COLOR_CPU = new Color(127, 140, 141); // Grey
+    // Vivid Nintendo-style Arcade Colors
+    public static final Color COLOR_PLAYER = new Color(255, 60, 60); // Vivid Neon Red
+    public static final Color COLOR_CPU = new Color(41, 128, 255); // Vivid Bright Blue
 
     public Rules(int gridSize) {
         this.gridSize = gridSize;

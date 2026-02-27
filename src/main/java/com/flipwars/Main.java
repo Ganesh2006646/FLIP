@@ -372,7 +372,7 @@ public class Main extends JFrame {
         // NORTH: Score + Turn + Status
         JPanel top = new JPanel(new GridLayout(3, 1));
         top.setBackground(COLOR_BG);
-        scoreLabel = createLbl("Yellow: 0 | Grey: 0", 24, Color.WHITE);
+        scoreLabel = createLbl("Red: 0 | Blue: 0", 24, Color.WHITE);
         turnLabel = createLbl("Turn: 0 / " + maxTurns, 18, COLOR_ACCENT);
         statusLabel = createLbl("Your Turn", 18, COLOR_HINT);
         top.add(scoreLabel);
@@ -380,11 +380,17 @@ public class Main extends JFrame {
         top.add(statusLabel);
         p.add(top, BorderLayout.NORTH);
 
-        // CENTER: 3D Tile Grid using TileButton
-        // Gap of 10px between tiles so the shadow depth is clearly visible
-        JPanel grid = new JPanel(new GridLayout(gridSize, gridSize, 10, 10));
-        grid.setBackground(COLOR_BG);
-        grid.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        // CENTER: 3D Tile Grid — GridBagLayout wrapper forces a perfect square
+        // so tiles never stretch on widescreen monitors.
+        JPanel gridWrapper = new JPanel(new GridBagLayout());
+        gridWrapper.setBackground(new Color(106, 219, 36)); // Nintendo Grass Green
+        gridWrapper.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JPanel grid = new JPanel(new GridLayout(gridSize, gridSize, 16, 16));
+        grid.setOpaque(false); // Let grass green show through tile gaps
+        int boardPixelSize = (gridSize == 4) ? 500 : (gridSize == 5) ? 600 : 700;
+        grid.setPreferredSize(new Dimension(boardPixelSize, boardPixelSize));
+
         for (int i = 0; i < totalTiles; i++) {
             TileButton b = new TileButton();
             final int id = i;
@@ -392,7 +398,8 @@ public class Main extends JFrame {
             tileButtons[i] = b;
             grid.add(b);
         }
-        p.add(grid, BorderLayout.CENTER);
+        gridWrapper.add(grid); // GridBagLayout centers the fixed-size grid
+        p.add(gridWrapper, BorderLayout.CENTER);
 
         // EAST: Brain Scanner panel — real-time AI decision log
         // Using SwingUtilities.invokeLater() to safely update from background AI
@@ -567,7 +574,7 @@ public class Main extends JFrame {
         for (int i = 0; i < totalTiles; i++) {
             // ---- BLACK HOLE TILE: render as an unowned dark pit ----
             if (rules.isDeadTile(i)) {
-                tileButtons[i].setTileColor(new Color(15, 10, 10));
+                tileButtons[i].setBackground(new Color(15, 10, 10));
                 tileButtons[i].setText("⚫"); // solid black circle
                 tileButtons[i].setForeground(new Color(90, 20, 20));
                 tileButtons[i].setFont(new Font("Arial", Font.BOLD, 22));
@@ -585,7 +592,7 @@ public class Main extends JFrame {
                         baseColor.getRed() / 2,
                         baseColor.getGreen() / 2,
                         baseColor.getBlue() / 2);
-                tileButtons[i].setTileColor(dimColor);
+                tileButtons[i].setBackground(dimColor);
                 int countdown = rules.getLockCountdown(i);
                 String scoreText = (weight != 0) ? ((weight > 0 ? "+" : "") + (int) weight) : "";
                 tileButtons[i].setText("<html><center>" + scoreText
@@ -595,7 +602,7 @@ public class Main extends JFrame {
                 tileButtons[i].setFont(new Font("Arial", Font.BOLD, 14));
                 tileButtons[i].setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
             } else {
-                tileButtons[i].setTileColor(baseColor);
+                tileButtons[i].setBackground(baseColor);
                 if (weight != 0) {
                     tileButtons[i].setText((weight > 0 ? "+" : "") + (int) weight);
                     tileButtons[i].setForeground(weight > 0 ? Color.WHITE : new Color(255, 150, 150));
@@ -640,7 +647,7 @@ public class Main extends JFrame {
     private void updateScoreDisplay() {
         double yScore = calculateWeightedScore(true);
         double gScore = calculateWeightedScore(false);
-        scoreLabel.setText(String.format("Yellow: %.1f | Grey: %.1f", yScore, gScore));
+        scoreLabel.setText(String.format("Red: %.1f | Blue: %.1f", yScore, gScore));
         turnLabel.setText("Turn: " + turnsPlayed + " / " + maxTurns);
     }
 
