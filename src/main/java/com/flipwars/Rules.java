@@ -1,8 +1,7 @@
 package com.flipwars;
 
 import java.awt.Color;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.*;
 
 /**
  * Game Rules Engine — Tabu Search & Strategic Weighting.
@@ -13,17 +12,17 @@ import java.util.LinkedHashSet;
  *
  * <h2>Lock Mechanic (Tabu Search):</h2>
  * <ul>
- *   <li>After a tile is clicked, it gets locked for several turns</li>
- *   <li>Prevents infinite flip loops and adds strategic depth</li>
- *   <li>Tabu size scales with grid: max(2, gridSize^2 / 4)</li>
+ * <li>After a tile is clicked, it gets locked for several turns</li>
+ * <li>Prevents infinite flip loops and adds strategic depth</li>
+ * <li>Tabu size scales with grid: max(2, gridSize^2 / 4)</li>
  * </ul>
  *
  * <h2>Strategic Tile Values:</h2>
  * <ul>
- *   <li>Corners: +25 (most valuable)</li>
- *   <li>Edges: +15</li>
- *   <li>Standard: +5</li>
- *   <li>Near-Corners (Traps): -5 (dangerous positions)</li>
+ * <li>Corners: +25 (most valuable)</li>
+ * <li>Edges: +15</li>
+ * <li>Standard: +5</li>
+ * <li>Near-Corners (Traps): -5 (dangerous positions)</li>
  * </ul>
  *
  * @see Engine
@@ -32,6 +31,14 @@ public class Rules {
     private final int tabuSize;
     private final LinkedHashSet<Integer> tabuSet = new LinkedHashSet<>(); // O(1) contains()
     private final int gridSize;
+
+    /**
+     * DYNAMIC OBSTACLES — "Black Hole" tiles.
+     * Dead tiles cannot be clicked, flipped, or owned by any player.
+     * They persist for the entire game and are regenerated each new game.
+     * Proves that our Graph + DFS Cluster algorithms handle irregular grids.
+     */
+    private final Set<Integer> deadTiles = new HashSet<>();
 
     public static final Color COLOR_PLAYER = new Color(241, 196, 15); // Yellow
     public static final Color COLOR_CPU = new Color(127, 140, 141); // Grey
@@ -75,6 +82,28 @@ public class Rules {
 
     public void clearMemory() {
         tabuSet.clear();
+    }
+
+    // ---- Black Hole / Dead Tile API ----
+
+    /** Permanently marks a tile as a dead Black Hole for this game. */
+    public void addDeadTile(int id) {
+        deadTiles.add(id);
+    }
+
+    /** Returns true if this tile is a Black Hole (permanently unplayable). */
+    public boolean isDeadTile(int id) {
+        return deadTiles.contains(id);
+    }
+
+    /** Clears all Black Holes — call at the start of each new game. */
+    public void clearDeadTiles() {
+        deadTiles.clear();
+    }
+
+    /** Returns an immutable view of all current dead tile IDs. */
+    public Set<Integer> getDeadTiles() {
+        return Collections.unmodifiableSet(deadTiles);
     }
 
     public double getTileStrategicValue(int id) {
