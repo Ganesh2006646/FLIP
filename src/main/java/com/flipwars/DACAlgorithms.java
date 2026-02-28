@@ -328,18 +328,6 @@ public class DACAlgorithms {
     }
 
     /**
-     * Compare two moves and return the winner.
-     */
-    private int compareMoves(int moveA, int moveB, boolean[] board, Graph graph,
-            Rules rules, boolean forPlayer) {
-        double scoreA = evaluateMove(moveA, board, graph, rules, forPlayer);
-        double scoreB = evaluateMove(moveB, board, graph, rules, forPlayer);
-
-        // Return the one with higher score
-        return (scoreA >= scoreB) ? moveA : moveB;
-    }
-
-    /**
      * Evaluate a single move's immediate impact.
      */
     private double evaluateMove(int move, boolean[] board, Graph graph, Rules rules, boolean forPlayer) {

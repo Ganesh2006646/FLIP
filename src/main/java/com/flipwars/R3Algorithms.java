@@ -171,7 +171,10 @@ public class R3Algorithms {
 
         moves = orderMoves(moves, board, forPlayer);
 
-        // ── BRAIN SCANNER ───────────────────────────────────────────────
+        // ── BRAIN SCANNER: Pseudo-Grid board evaluation map ──────────────
+        printBoardGrid(board);
+
+        // ── BRAIN SCANNER: Alpha-Beta header ────────────────────────────
         logger.accept(String.format(
                 "[Alpha-Beta] Search started. Depth=%d | Moves to explore: %d",
                 MAX_DEPTH, moves.size()));
@@ -336,8 +339,13 @@ public class R3Algorithms {
             double nodeType = entry[2];
 
             if (storedDepth >= depth) {
-                if (nodeType == 0)
+                if (nodeType == 0) {
+                    // ── GANESH: Announce exact cache hit to Brain Scanner ──
+                    logger.accept(String.format(
+                            "[DP Cache Hit] Zobrist hash 0x%X → score=%.2f (depth=%d, EXACT)",
+                            hash & 0xFFFFFFFFL, storedScore, (int) storedDepth));
                     return storedScore; // Exact hit
+                }
                 if (nodeType == 1)
                     alpha = Math.max(alpha, storedScore); // Lower bound
                 if (nodeType == 2)
@@ -601,6 +609,40 @@ public class R3Algorithms {
     // =========================================================================
     // SHARED HELPERS
     // =========================================================================
+
+    /**
+     * BRAIN SCANNER — Pseudo-Grid Board Evaluation Map.
+     * Prints a text-based visual of the current board to the Brain Scanner:
+     * [ VOID ] for Black Hole tiles
+     * [ LOCK ] for Tabu-locked tiles
+     * [ +14.5 ] / [ -5.0 ] for free tiles (their strategic value)
+     * Called once per CPU turn before Alpha-Beta begins.
+     */
+    private void printBoardGrid(boolean[] board) {
+        logger.accept("[Board Evaluation Grid] ─────────────────────");
+        StringBuilder row = new StringBuilder();
+        for (int i = 0; i < totalTiles; i++) {
+            // Determine cell label
+            String cell;
+            if (graph.isBlackHole(i)) {
+                cell = "[  VOID ]";
+            } else if (rules.isLocked(i)) {
+                cell = "[  LOCK ]";
+            } else {
+                double val = rules.getTileStrategicValue(i);
+                // Show tile ownership sign: + if player owns it, - if CPU owns
+                double signed = board[i] ? val : -val;
+                cell = String.format("[%+6.1f ]", signed);
+            }
+            row.append(cell).append(" ");
+            // Line break at end of each grid row
+            if ((i + 1) % gridSize == 0) {
+                logger.accept(row.toString().trim());
+                row.setLength(0);
+            }
+        }
+        logger.accept("────────────────────────────────────────────");
+    }
 
     /**
      * Collects all tiles that are NOT currently locked (valid moves).
