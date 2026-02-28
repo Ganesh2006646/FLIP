@@ -1142,8 +1142,8 @@ public class FlipWarsApp extends Application {
             this.humanFirst = humanFirst;
             this.totalTiles = gridSize * gridSize;
             this.onBack = onBack;
-            // Tabu constraint: Math.max(2, N^2 / 4)
-            this.maxTurns = Math.max(2, totalTiles / 4);
+            // Increased Turn Limit based on N^2 (Double the previous)
+            this.maxTurns = Math.max(10, totalTiles / 2);
         }
 
         Scene build() {
