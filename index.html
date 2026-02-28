@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flip Wars - Java Web</title>
+    <!-- Import CheerpJ V3 engine from official validated CDN -->
+    <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
+    <style>
+        body {
+            /* Match game UI aesthetic */
+            background-color: #0A0A14;
+            color: #50FF78;
+            font-family: 'Consolas', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #cheerpj-container {
+            border: 2px solid #50FF78;
+            box-shadow: 0 0 15px rgba(80, 255, 120, 0.4);
+            border-radius: 8px;
+            overflow: hidden;
+            width: 1080px;
+            height: 1040px;
+            max-width: 100vw;
+            max-height: 100vh;
+            /* Scale down on smaller screens if necessary */
+            transform-origin: top center;
+        }
+
+        #loading {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loading">Initializing Java Environment...</div>
+    <div id="cheerpj-container"></div>
+
+    <script>
+        async function runGame() {
+            try {
+                // Initialize CheerpJ engine V3
+                await cheerpjInit({
+                    enableNativeWindow: true,
+                    clipboardMode: "permission"
+                });
+
+                // Set the display container for the Java/JavaFX Stage
+                cheerpjCreateDisplay(1080, 1040, document.getElementById('cheerpj-container'));
+
+                document.getElementById('loading').innerText = 'Downloading JVM and FlipWars.jar...';
+
+                // CheerpJ runs the virtualized jar file relative to the web root
+                try {
+                    await cheerpjRunJar("/app/FlipWars.jar");
+                } catch (e) {
+                    console.error(e);
+                }
+
+                document.getElementById('loading').style.display = 'none';
+
+            } catch (error) {
+                document.getElementById('loading').innerText = 'Failed to load: ' + error.message;
+                document.getElementById('loading').style.color = '#FF5555';
+            }
+        }
+
+        runGame();
+    </script>
+</body>
+
+</html>
