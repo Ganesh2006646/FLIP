@@ -2,44 +2,30 @@ package com.flipwars;
 
 import java.util.*;
 
-/**
- * Graph Representation using Adjacency Lists — Black Hole Aware.
- * <p>
- * Models the game board as a graph where each tile is a vertex and edges
- * connect orthogonally adjacent tiles (up, down, left, right + self).
- * Black Hole tiles are registered with EMPTY neighbor lists so the flip
- * mechanic and DFS algorithms naturally skip them with zero code changes.
- * </p>
- *
- * <h2>Black Hole Effect on Graph Topology:</h2>
- * <ul>
- * <li>Black Hole tiles have no outgoing or incoming adjacency edges</li>
- * <li>Their neighbors are excluded from adjacent tiles' neighbor lists</li>
- * <li>DFS Cluster algorithm flows around them without modification</li>
- * <li>This demonstrates real-world <b>irregular graph topology</b></li>
- * </ul>
- *
- * @see Engine
- * @see DACAlgorithms
- */
+// Graph Representation using Adjacency Lists — Black Hole Aware.
+// Models the game board as a graph where each tile is a vertex and edges
+// connect orthogonally adjacent tiles (up, down, left, right + self).
+// Black Hole tiles are registered with EMPTY neighbor lists so the flip
+// mechanic and DFS algorithms naturally skip them with zero code changes.
+//
+// Black Hole Effect on Graph Topology:
+//   - Black Hole tiles have no outgoing or incoming adjacency edges
+//   - Their neighbors are excluded from adjacent tiles' neighbor lists
+//   - DFS Cluster algorithm flows around them without modification
+//   - This demonstrates real-world irregular graph topology
 public class Graph {
     private final int gridSize;
     private final Map<Integer, List<Integer>> adjacencyList = new HashMap<>();
     private final Set<Integer> blackHoles;
 
-    /** Constructs a standard graph with no black holes. */
+    // Constructs a standard graph with no black holes.
     public Graph(int gridSize) {
         this(gridSize, Collections.emptySet());
     }
 
-    /**
-     * Constructs a Black-Hole-aware graph.
-     * Black hole tiles get empty adjacency lists; their IDs are also excluded
-     * from their neighbors' neighbor lists, making the exclusion bidirectional.
-     *
-     * @param gridSize   Size of the grid (4, 5, or 6)
-     * @param blackHoles Set of tile IDs that are dead/void
-     */
+    // Constructs a Black-Hole-aware graph.
+    // Black hole tiles get empty adjacency lists; their IDs are also excluded
+    // from their neighbors' neighbor lists, making the exclusion bidirectional.
     public Graph(int gridSize, Set<Integer> blackHoles) {
         this.gridSize = gridSize;
         this.blackHoles = blackHoles;
@@ -73,10 +59,8 @@ public class Graph {
         }
     }
 
-    /**
-     * Adds the neighbor at (r, c) if it is within bounds AND is not a Black Hole.
-     * Skipping Black Holes here means they are never flipped as side effects.
-     */
+    // Adds the neighbor at (r, c) if it is within bounds AND is not a Black Hole.
+    // Skipping Black Holes here means they are never flipped as side effects.
     private void addIfValid(List<Integer> list, int r, int c) {
         if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
             int neighbor = r * gridSize + c;
@@ -91,7 +75,7 @@ public class Graph {
         return (neighbors != null) ? neighbors : Collections.emptyList();
     }
 
-    /** Returns true if the given tile is a Black Hole. */
+    // Returns true if the given tile is a Black Hole.
     public boolean isBlackHole(int tileId) {
         return blackHoles.contains(tileId);
     }

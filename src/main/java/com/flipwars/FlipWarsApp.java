@@ -656,7 +656,7 @@ public class FlipWarsApp extends Application {
             // LEFT: Candidates TableView
             // ────────────────────────────────────────────────────────────────
             candidatesTable = new TableView<>();
-            candidatesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+            candidatesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
             candidatesTable.setStyle("-fx-background-color: #0A0A14;"
                     + "-fx-control-inner-background: #0A0A14;"
                     + "-fx-table-cell-border-color: #222;"

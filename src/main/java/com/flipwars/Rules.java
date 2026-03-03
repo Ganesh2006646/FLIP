@@ -3,31 +3,21 @@ package com.flipwars;
 import java.awt.Color;
 import java.util.*;
 
-/**
- * Game Rules Engine — Tabu Search, Strategic Weighting, Black Hole Awareness.
- * <p>
- * Manages the lock/tabu mechanic and assigns strategic values to tiles.
- * Black Hole tiles return a value of 0.0 and are never added to the Tabu set.
- * </p>
- *
- * <h2>Lock Mechanic (Tabu Search):</h2>
- * <ul>
- * <li>After a tile is clicked, it gets locked for several turns</li>
- * <li>Prevents infinite flip loops and adds strategic depth</li>
- * <li>Tabu size scales with grid: max(2, gridSize^2 / 4)</li>
- * </ul>
- *
- * <h2>Strategic Tile Values:</h2>
- * <ul>
- * <li>Corners: +25 (most valuable)</li>
- * <li>Edges: +15</li>
- * <li>Standard: +5</li>
- * <li>Near-Corners (Traps): -5 (dangerous positions)</li>
- * <li>Black Holes: 0.0 (neutral — excluded from scoring)</li>
- * </ul>
- *
- * @see Engine
- */
+// Game Rules Engine — Tabu Search, Strategic Weighting, Black Hole Awareness.
+// Manages the lock/tabu mechanic and assigns strategic values to tiles.
+// Black Hole tiles return a value of 0.0 and are never added to the Tabu set.
+//
+// Lock Mechanic (Tabu Search):
+//   - After a tile is clicked, it gets locked for several turns
+//   - Prevents infinite flip loops and adds strategic depth
+//   - Tabu size scales with grid: max(2, gridSize^2 / 4)
+//
+// Strategic Tile Values:
+//   - Corners:             +25 (most valuable)
+//   - Edges:               +15
+//   - Standard:             +5
+//   - Near-Corners (Traps): -5 (dangerous positions)
+//   - Black Holes:           0.0 (neutral — excluded from scoring)
 public class Rules {
     private final int tabuSize;
     private final LinkedHashSet<Integer> tabuSet = new LinkedHashSet<>(); // O(1) contains()
@@ -37,18 +27,13 @@ public class Rules {
     public static final Color COLOR_PLAYER = new Color(241, 196, 15); // Yellow
     public static final Color COLOR_CPU = new Color(127, 140, 141); // Grey
 
-    /** Constructs Rules with no black holes. */
+    // Constructs Rules with no black holes.
     public Rules(int gridSize) {
         this(gridSize, Collections.emptySet());
     }
 
-    /**
-     * Constructs Rules with Black Hole awareness.
-     * Black Holes are never locked (can't be clicked) and always score 0.
-     *
-     * @param gridSize   Size of the grid
-     * @param blackHoles Set of tile IDs that are permanently dead
-     */
+    // Constructs Rules with Black Hole awareness.
+    // Black Holes are never locked (can't be clicked) and always score 0.
     public Rules(int gridSize, Set<Integer> blackHoles) {
         this.gridSize = gridSize;
         this.blackHoles = blackHoles;
@@ -94,11 +79,9 @@ public class Rules {
         tabuSet.clear();
     }
 
-    /**
-     * Returns the strategic tile value.
-     * Black Holes always return 0.0 — they have no ownership and contribute
-     * no score, preventing the AI from treating them as free CPU tiles.
-     */
+    // Returns the strategic tile value.
+    // Black Holes always return 0.0 — they have no ownership and contribute
+    // no score, preventing the AI from treating them as free CPU tiles.
     public double getTileStrategicValue(int id) {
         // BLACK HOLE: zero value — ignored by all scoring algorithms
         if (blackHoles.contains(id))
@@ -116,7 +99,7 @@ public class Rules {
         return 5.0; // Standard
     }
 
-    /** Returns true if the given tile is a Black Hole. */
+    // Returns true if the given tile is a Black Hole.
     public boolean isBlackHole(int tileId) {
         return blackHoles.contains(tileId);
     }

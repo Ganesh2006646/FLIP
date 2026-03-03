@@ -3,33 +3,6 @@ package com.flipwars;
 import java.util.*;
 import java.util.function.Consumer;
 
-/**
- * ============================================================================
- * R3Algorithms — Version 3 AI Engine: Dynamic Programming + Backtracking
- * ============================================================================
- *
- * <p>
- * This class forms the "State-Space Search Engine" for Review 3 of Flip Wars.
- * It integrates FOUR distinct algorithms that work together inside a single
- * recursive Minimax tree:
- * </p>
- *
- * <ol>
- * <li><b>SUHAS —</b> Pure Backtracking: in-place doMove / undoMove (O(1)
- * space)</li>
- * <li><b>MANEESH —</b> Alpha-Beta Pruning Minimax with D&C move ordering</li>
- * <li><b>GANESH —</b> Transposition Table (Top-Down Memoization, Zobrist
- * Hash)</li>
- * <li><b>BALAJI —</b> Bottom-Up Bitmask DP / End-Game Oracle (4x4: 65536
- * states)</li>
- * </ol>
- *
- * <p>
- * Algorithms 1–3 collaborate inside {@link #alphaBeta}. Algorithm 4 runs
- * independently as a precomputed lookup table and is used by
- * {@link #getPlayerHintR3} as an O(1) oracle for 4x4 boards.
- * </p>
- */
 public class R3Algorithms {
 
     // =========================================================================
@@ -42,71 +15,51 @@ public class R3Algorithms {
     private final Rules rules;
     private DACAlgorithms dac;
 
-    /** Brain Scanner logger — silent by default, wired in by Engine.setLogger() */
+    // Brain Scanner logger — silent by default, wired in by Engine.setLogger()
     private Consumer<String> logger = msg -> {
     };
 
-    /** Allows Engine to inject the Brain Scanner logger after construction. */
+    // Allows Engine to inject the Brain Scanner logger after construction.
     public void setLogger(Consumer<String> logger) {
         this.logger = logger;
         this.dac = new DACAlgorithms(logger);
     }
 
     // ---- MANEESH: Dynamic depth limit based on grid size --------------------
-    /**
-     * Search depth scales inversely with branching factor to keep UI responsive.
-     */
+    // Search depth scales inversely with branching factor to keep UI responsive.
     private final int MAX_DEPTH;
 
     // ---- GANESH: Transposition Table (Memoization) -------------------------
-    /**
-     * Maps Zobrist board-hash → heuristic score.
-     * Eliminates re-evaluation of repeated board states (overlapping subproblems).
-     */
+    // Maps Zobrist board-hash → heuristic score.
+    // Eliminates re-evaluation of repeated board states (overlapping subproblems).
     private final HashMap<Long, Double> memoTable = new HashMap<>();
 
-    /**
-     * A separate table keyed by (hash, depth) to store upper/lower bounds.
-     * Format: hash → double[]{score, depth, nodeType}
-     * nodeType: 0=exact, 1=lower-bound (alpha), 2=upper-bound (beta)
-     */
+    // A separate table keyed by (hash, depth) to store upper/lower bounds.
+    // Format: hash → double[]{score, depth, nodeType}
+    // nodeType: 0=exact, 1=lower-bound (alpha), 2=upper-bound (beta)
     private final HashMap<Long, double[]> ttTable = new HashMap<>();
 
-    /**
-     * GANESH — Zobrist random keys.
-     * zobristTile[i] XOR-ed when tile i is true (player-owned).
-     * zobristLock[i] XOR-ed when tile i is locked (Tabu).
-     * Separate arrays ensure Board(same tiles, different locks) ≠ same hash.
-     */
+    // GANESH — Zobrist random keys.
+    // zobristTile[i] XOR-ed when tile i is true (player-owned).
+    // zobristLock[i] XOR-ed when tile i is locked (Tabu).
+    // Separate arrays ensure Board(same tiles, different locks) ≠ same hash.
     private final long[] zobristTile;
     private final long[] zobristLock;
 
     // ---- BALAJI: Bottom-Up Bitmask DP Oracle (4x4 only) --------------------
-    /**
-     * exactSolver[state] = minimum number of moves to reach a "near-win" state.
-     * Indexed by a 16-bit integer representing the 4x4 board.
-     * Only valid when gridSize == 4 and oracleReady == true.
-     */
+    // exactSolver[state] = minimum number of moves to reach a "near-win" state.
+    // Indexed by a 16-bit integer representing the 4x4 board.
+    // Only valid when gridSize == 4 and oracleReady == true.
     private final int[] exactSolver = new int[65536];
 
-    /**
-     * Set to true once the background BFS precomputation finishes.
-     * Checked before every Oracle lookup; falls back to Alpha-Beta if false.
-     */
+    // Set to true once the background BFS precomputation finishes.
+    // Checked before every Oracle lookup; falls back to Alpha-Beta if false.
     private volatile boolean oracleReady = false;
 
     // =========================================================================
     // CONSTRUCTOR
     // =========================================================================
 
-    /**
-     * Constructs the R3 engine and kicks off Oracle precomputation in the
-     * background.
-     *
-     * @param gridSize Size of the grid (4, 5, or 6)
-     * @param graph    Pre-built adjacency graph
-     * @param rules    Rules engine (strategic values + Tabu locks)
-     */
     public R3Algorithms(int gridSize, Graph graph, Rules rules) {
         this.gridSize = gridSize;
         this.totalTiles = gridSize * gridSize;
@@ -154,14 +107,6 @@ public class R3Algorithms {
     // PUBLIC ENTRY POINTS (called by Engine)
     // =========================================================================
 
-    /**
-     * CPU's best move for version 3.
-     * Runs Alpha-Beta Minimax (isMaximizing = false → CPU minimizes player score).
-     *
-     * @param board     Current board state
-     * @param forPlayer false → CPU is playing, true → player is playing
-     * @return Tile index of the best move, or -1 if none available
-     */
     public int getBestMoveR3(boolean[] board, boolean forPlayer) {
         clearMemo(); // Fresh transposition table each turn
 
@@ -200,16 +145,6 @@ public class R3Algorithms {
         return bestMove;
     }
 
-    /**
-     * Player hint for version 3.
-     * <ul>
-     * <li>4x4 + Oracle ready → O(1) lookup from exactSolver[]</li>
-     * <li>Otherwise → Alpha-Beta search (forPlayer = true)</li>
-     * </ul>
-     *
-     * @param board Current board state
-     * @return Tile index of the recommended hint move
-     */
     public int getPlayerHintR3(boolean[] board) {
         if (gridSize == 4 && oracleReady) {
             int state = boardToInt(board);
@@ -217,17 +152,13 @@ public class R3Algorithms {
             // ── BRAIN SCANNER ─────────────────────────────────────────
             logger.accept("[Bitmask DP Oracle] 65536-state BFS table lookup.");
             logger.accept(String.format(
-                    "[Oracle] Best hint \u2192 Tile %d  (O(1) lookup, precomputed table)", hint));
+                    "[Oracle] Best hint → Tile %d  (O(1) lookup, precomputed table)", hint));
             return hint;
         }
         logger.accept("[Alpha-Beta] Oracle not ready — falling back to Alpha-Beta search.");
         return getBestMoveR3(board, true);
     }
 
-    /**
-     * Clears the transposition table.
-     * Called at the start of every move and when the engine version changes.
-     */
     public void clearMemo() {
         memoTable.clear();
         ttTable.clear();
@@ -239,22 +170,6 @@ public class R3Algorithms {
     // No board.clone() ever used inside the search tree.
     // =========================================================================
 
-    /**
-     * SUHAS — doMove: Applies a move to the shared board array in-place.
-     * <p>
-     * Mechanism: A tile-flip toggles the tile and all its orthogonal neighbors.
-     * XOR/NOT is its own inverse, so doMove == undoMove on the same tile.
-     * </p>
-     * <p>
-     * Complexity: O(k) where k ≤ 5 (the flip group size), effectively O(1).
-     * </p>
-     * <p>
-     * Space: O(1) — no new arrays allocated.
-     * </p>
-     *
-     * @param board Shared boolean array (mutated in-place)
-     * @param move  Tile index to flip
-     */
     public void doMove(boolean[] board, int move) {
         // Flip the tile and every orthogonal neighbor (including self via graph)
         for (int neighbor : graph.getNeighbors(move)) {
@@ -264,17 +179,6 @@ public class R3Algorithms {
         }
     }
 
-    /**
-     * SUHAS — undoMove: Reverses a move applied by doMove.
-     * <p>
-     * Because flipping is an involuntary operation (XOR), applying the exact
-     * same flip a second time restores the original state perfectly.
-     * This is the mathematical proof that no board copy is ever needed.
-     * </p>
-     *
-     * @param board Shared boolean array (mutated in-place to restore prior state)
-     * @param move  Tile index that was previously flipped
-     */
     public void undoMove(boolean[] board, int move) {
         // Identical to doMove — XOR is self-inverse.
         // Calling it again on the same tile undoes the previous doMove exactly.
@@ -286,44 +190,6 @@ public class R3Algorithms {
     // Recursive Minimax with pruning and D&C move ordering.
     // =========================================================================
 
-    /**
-     * MANEESH — Alpha-Beta Pruning Minimax.
-     *
-     * <p>
-     * <b>Minimax logic:</b> The maximizing player (human/player) wants the
-     * highest scoring state. The minimizing player (CPU) wants the lowest.
-     * The search explores the game tree to depth {@link #MAX_DEPTH}.
-     * </p>
-     *
-     * <p>
-     * <b>Alpha-Beta pruning:</b>
-     * <ul>
-     * <li>alpha = best score the maximizer can GUARANTEE so far</li>
-     * <li>beta = best score the minimizer can GUARANTEE so far</li>
-     * <li>If beta ≤ alpha: the current branch will never be chosen → prune
-     * (cut-off).</li>
-     * </ul>
-     * This eliminates up to √(branching^depth) nodes from the search tree.
-     * </p>
-     *
-     * <p>
-     * <b>Move ordering (D&C integration):</b> Candidate moves are sorted
-     * using the R2 heuristic before expansion (see {@link #orderMoves}).
-     * Best moves searched first → tighter alpha bound early → more cutoffs.
-     * </p>
-     *
-     * <p>
-     * <b>Transposition Table integration (GANESH):</b> The board hash is
-     * checked before recursing to skip already-evaluated states.
-     * </p>
-     *
-     * @param board        Shared board state (mutated in-place via doMove/undoMove)
-     * @param depth        Remaining depth; 0 triggers leaf evaluation
-     * @param alpha        Best score maximizer can guarantee (initially -∞)
-     * @param beta         Best score minimizer can guarantee (initially +∞)
-     * @param isMaximizing true if it's the player's turn, false if CPU's turn
-     * @return Heuristic evaluation score from this node's perspective
-     */
     private double alphaBeta(boolean[] board, int depth,
             double alpha, double beta, boolean isMaximizing) {
 
@@ -420,32 +286,6 @@ public class R3Algorithms {
     // Zobrist Hashing: converts board + lock state to a 64-bit integer.
     // =========================================================================
 
-    /**
-     * GANESH — Zobrist Board Hash.
-     *
-     * <p>
-     * <b>Algorithm:</b>
-     * Start with hash = 0. For each tile that is true (player-owned), XOR in
-     * a unique pre-generated random 64-bit integer for that tile.
-     * Additionally, for each <em>locked</em> tile, XOR in a second independent
-     * random key to encode the Tabu Search state.
-     * </p>
-     *
-     * <p>
-     * <b>Why include lock state?</b><br>
-     * Board A (tiles identical to B, but tile 5 locked) is a <em>different</em>
-     * game state — legal moves differ, so re-using B's cached score for A
-     * would be incorrect. Including locks prevents false cache collisions.
-     * </p>
-     *
-     * <p>
-     * <b>Complexity:</b> O(n) where n = totalTiles.
-     * <b>Collision probability:</b> ≈ 1 / 2^64 (negligible for a game).
-     * </p>
-     *
-     * @param board Current board state (true = player tile)
-     * @return 64-bit Zobrist hash encoding tile ownership + lock status
-     */
     private long getBoardHash(boolean[] board) {
         long hash = 0L;
         for (int i = 0; i < totalTiles; i++) {
@@ -464,43 +304,6 @@ public class R3Algorithms {
     // Precomputed BFS over all 65,536 possible 4x4 board states.
     // =========================================================================
 
-    /**
-     * BALAJI — 4x4 End-Game Oracle Precomputation (Bottom-Up DP).
-     *
-     * <p>
-     * <b>State space:</b> A 4x4 board has 16 tiles. Each tile is true/false.
-     * Total states = 2^16 = 65,536. These fit in a single {@code int[65536]}.
-     * </p>
-     *
-     * <p>
-     * <b>Algorithm (Bottom-Up BFS from winning states):</b>
-     * <ol>
-     * <li><b>Base:</b> States where ALL tiles are one color are "distance 0"
-     * (already won).
-     * We treat state {@code 0x0000} (all CPU) and {@code 0xFFFF} (all Player) as
-     * goal states.</li>
-     * <li><b>Level k:</b> For each state at distance k, simulate all possible
-     * flips.
-     * Any unvisited resulting state has distance k+1.</li>
-     * <li><b>Result:</b> exactSolver[s] = fewest moves to reach a goal from state
-     * s.</li>
-     * </ol>
-     * </p>
-     *
-     * <p>
-     * <b>Complexity:</b> O(65536 × 16) = O(1M) — runs in &lt;50ms, safe for
-     * background thread.
-     * </p>
-     * <p>
-     * <b>Space:</b> O(65536) for exactSolver + O(65536) for BFS queue = O(1)
-     * relative to game.
-     * </p>
-     *
-     * <p>
-     * Since this uses a fixed 4x4 connectivity pattern, we compute neighbor masks
-     * directly from tile indices without needing the Graph object for the BFS.
-     * </p>
-     */
     private void precompute4x4Oracle() {
         // Precompute the flip mask for each tile on a 4x4 board.
         // flipMask[i] is a 16-bit integer where bit j is set if flipping tile i also
@@ -559,19 +362,6 @@ public class R3Algorithms {
         }
     }
 
-    /**
-     * BALAJI — Oracle Hint Lookup: O(1) after precomputation.
-     *
-     * <p>
-     * Tries every available (unlocked) tile, simulates the flip using XOR on
-     * the bitmask representation, and returns the tile whose resulting state has
-     * the smallest {@code exactSolver[]} value — i.e., the move that puts the
-     * board closest to a winning state.
-     * </p>
-     *
-     * @param boardState 16-bit integer representation of current board
-     * @return Tile index of the optimal move (O(1) lookup)
-     */
     private int getExactWinMove(int boardState) {
         int bestMove = -1;
         int bestDist = Integer.MAX_VALUE;
@@ -610,14 +400,6 @@ public class R3Algorithms {
     // SHARED HELPERS
     // =========================================================================
 
-    /**
-     * BRAIN SCANNER — Pseudo-Grid Board Evaluation Map.
-     * Prints a text-based visual of the current board to the Brain Scanner:
-     * [ VOID ] for Black Hole tiles
-     * [ LOCK ] for Tabu-locked tiles
-     * [ +14.5 ] / [ -5.0 ] for free tiles (their strategic value)
-     * Called once per CPU turn before Alpha-Beta begins.
-     */
     private void printBoardGrid(boolean[] board) {
         logger.accept("[Board Evaluation Grid] ─────────────────────");
         StringBuilder row = new StringBuilder();
@@ -644,10 +426,8 @@ public class R3Algorithms {
         logger.accept("────────────────────────────────────────────");
     }
 
-    /**
-     * Collects all tiles that are NOT currently locked (valid moves).
-     * Respects the Tabu Search lock mechanism from Rules.
-     */
+    // Collects all tiles that are NOT currently locked (valid moves).
+    // Respects the Tabu Search lock mechanism from Rules.
     private List<Integer> getAvailableMoves() {
         List<Integer> moves = new ArrayList<>();
         for (int i = 0; i < totalTiles; i++) {
@@ -657,30 +437,10 @@ public class R3Algorithms {
         return moves;
     }
 
-    /**
-     * MANEESH — Move Ordering via R2 D&C Tournament Heuristic.
-     *
-     * <p>
-     * Sorts candidate moves so the most promising ones are searched first.
-     * This is the "Branch & Bound" component: by exploring high-value branches
-     * early, we get tight alpha/beta bounds that prune more subsequent branches.
-     * </p>
-     *
-     * <p>
-     * Uses R2's {@code tournamentSelection} logic to score each move,
-     * then sorts in descending order (best score first).
-     * </p>
-     *
-     * <p>
-     * Complexity: O(n log n) for sort, O(n) for scoring — done once per node.
-     * </p>
-     *
-     * @param moves     Available move indices
-     * @param board     Current board state (NOT modified — uses temp clone for
-     *                  scoring only)
-     * @param forPlayer true = order for player's perspective, false = CPU
-     * @return Reordered move list, best move first
-     */
+    // MANEESH — Move Ordering via R2 D&C Tournament Heuristic.
+    // Sorts candidate moves so the most promising ones are searched first.
+    // Best moves searched first → tighter alpha bound early → more cutoffs.
+    // Complexity: O(n log n) for sort, O(n) for scoring — done once per node.
     private List<Integer> orderMoves(List<Integer> moves, boolean[] board, boolean forPlayer) {
         // Score each move with a quick heuristic (leaf evaluation after one step)
         List<int[]> scored = new ArrayList<>();
@@ -703,20 +463,10 @@ public class R3Algorithms {
         return ordered;
     }
 
-    /**
-     * Leaf node evaluation — combined R2 weighted scoring.
-     * This is the heuristic at depth-0 nodes:
-     * 
-     * <pre>
-     * Score = (strategic * 0.20) + (quadrant * 0.25) + (cluster * 0.25) + (threat * 0.30)
-     * </pre>
-     * 
-     * Positive score = good for the player currently being evaluated.
-     *
-     * @param board     Board to evaluate
-     * @param forPlayer true → positive score means player is winning
-     * @return Combined heuristic evaluation score
-     */
+    // Leaf node evaluation — combined R2 weighted scoring.
+    // Score = (strategic * 0.20) + (quadrant * 0.25) + (cluster * 0.25) + (threat *
+    // 0.30)
+    // Positive score = good for the player currently being evaluated.
     private double evaluateLeaf(boolean[] board, boolean forPlayer) {
         // Strategic tile values (corners, edges, traps)
         double strategic = 0;
@@ -740,10 +490,8 @@ public class R3Algorithms {
         return (strategic * 0.20) + (quadrant * 0.25) + (cluster * 0.25) + (threat * 0.30);
     }
 
-    /**
-     * Applies a flip to a board copy (used ONLY for move ordering scoring).
-     * This is NOT used inside the search tree — doMove/undoMove handles that.
-     */
+    // Applies a flip to a board copy (used ONLY for move ordering scoring).
+    // This is NOT used inside the search tree — doMove/undoMove handles that.
     private void applyFlip(boolean[] board, int move) {
         for (int neighbor : graph.getNeighbors(move)) {
             if (!rules.isLocked(neighbor)) {
@@ -752,13 +500,8 @@ public class R3Algorithms {
         }
     }
 
-    /**
-     * BALAJI — Converts a boolean[] board to a 16-bit integer (4x4 only).
-     * Bit i is set (1) if board[i] is true (player-owned).
-     *
-     * @param board Boolean board array
-     * @return 16-bit integer representation
-     */
+    // BALAJI — Converts a boolean[] board to a 16-bit integer (4x4 only).
+    // Bit i is set (1) if board[i] is true (player-owned).
     private int boardToInt(boolean[] board) {
         int state = 0;
         for (int i = 0; i < Math.min(board.length, 16); i++) {
@@ -768,13 +511,8 @@ public class R3Algorithms {
         return state;
     }
 
-    /**
-     * BALAJI — Converts a 16-bit integer back to a boolean[] board (4x4 only).
-     * Used by the Oracle fallback path.
-     *
-     * @param state 16-bit integer
-     * @return Boolean board array
-     */
+    // BALAJI — Converts a 16-bit integer back to a boolean[] board (4x4 only).
+    // Used by the Oracle fallback path.
     private boolean[] intToBoard(int state) {
         boolean[] board = new boolean[16];
         for (int i = 0; i < 16; i++) {
@@ -787,19 +525,17 @@ public class R3Algorithms {
     // DIAGNOSTICS
     // =========================================================================
 
-    /** Returns true if the 4x4 Oracle BFS is complete and ready to use. */
+    // Returns true if the 4x4 Oracle BFS is complete and ready to use.
     public boolean isOracleReady() {
         return oracleReady;
     }
 
-    /**
-     * Returns the current size of the Transposition Table (for viva diagnostics).
-     */
+    // Returns the current size of the Transposition Table (for viva diagnostics).
     public int getMemoTableSize() {
         return ttTable.size();
     }
 
-    /** Returns the dynamic depth limit (for viva diagnostics). */
+    // Returns the dynamic depth limit (for viva diagnostics).
     public int getMaxDepth() {
         return MAX_DEPTH;
     }
