@@ -4,6 +4,3 @@ target/
 .idea/
 *.iml
 .vscode/
-dist/
-staging/
-FlipWars-Windows.zip
