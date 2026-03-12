@@ -40,6 +40,7 @@ public class R3Algorithms {
     private final HashMap<Long, double[]> ttTable = new HashMap<>();
 
     // GANESH — Zobrist random keys.
+    
     // zobristTile[i] XOR-ed when tile i is true (player-owned).
     // zobristLock[i] XOR-ed when tile i is locked (Tabu).
     // Separate arrays ensure Board(same tiles, different locks) ≠ same hash.
