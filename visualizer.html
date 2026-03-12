@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flip Wars — Backtracking + Alpha-Beta Visualizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #181c25;
+      --border: #282e3a;
+      --text: #e8ecf4;
+      --muted: #6b7a90;
+      --yellow: #F4C430;
+      --blue: #2E86C1;
+      --orange: #FF9F43;
+      --cyan: #00D2FF;
+      --red: #FF5555;
+      --green: #50FFAA;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* ─── HEADER ────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      padding: 30px 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--orange), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header p {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    /* ─── LEGEND ────────────────────────────────────────── */
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 36px;
+      padding: 16px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+    }
+
+    /* ─── LAYOUT ────────────────────────────────────────── */
+    .layout {
+      display: flex;
+      gap: 20px;
+      padding: 20px 24px;
+      max-width: 1300px;
+      margin: 0 auto;
+      align-items: flex-start;
+    }
+
+    .left {
+      width: 320px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .card-label {
+      padding: 12px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ─── BOARD (3x3 for simplicity) ────────────────────── */
+    .board-wrap {
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 80px);
+      gap: 8px;
+    }
+
+    .cell {
+      width: 80px;
+      height: 80px;
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 22px;
+      transition: transform 0.25s, box-shadow 0.25s, background 0.3s;
+      position: relative;
+    }
+
+    .cell.player {
+      background: linear-gradient(145deg, #f7d24e, #c9a01e);
+      color: #2a1e00;
+      box-shadow: 0 4px 16px #F4C43044;
+    }
+
+    .cell.cpu {
+      background: linear-gradient(145deg, #3a9ae0, #1d6ea0);
+      color: #fff;
+      box-shadow: 0 4px 16px #2E86C144;
+    }
+
+    .cell .cell-label {
+      font-size: 10px;
+      font-weight: 600;
+      opacity: 0.6;
+      margin-top: 2px;
+    }
+
+    .cell.glow-orange {
+      box-shadow: 0 0 0 4px var(--orange), 0 0 24px var(--orange) !important;
+      transform: scale(1.08);
+      z-index: 2;
+    }
+
+    .cell.glow-red {
+      box-shadow: 0 0 0 4px var(--red), 0 0 24px var(--red) !important;
+      transform: scale(1.08);
+      z-index: 2;
+    }
+
+    /* ─── EXPLANATION BOX (big & clear) ─────────────────── */
+    .explain-box {
+      padding: 20px;
+      min-height: 120px;
+    }
+
+    .explain-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .explain-body {
+      font-size: 15px;
+      line-height: 1.7;
+      color: #c0c8d8;
+    }
+
+    .explain-body strong {
+      color: #fff;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      vertical-align: middle;
+    }
+
+    .tag-suhas {
+      background: #FF9F4325;
+      color: var(--orange);
+      border: 1.5px solid #FF9F4355;
+    }
+
+    .tag-maneesh {
+      background: #00D2FF25;
+      color: var(--cyan);
+      border: 1.5px solid #00D2FF55;
+    }
+
+    .tag-prune {
+      background: #FF555525;
+      color: var(--red);
+      border: 1.5px solid #FF555555;
+    }
+
+    /* ─── CONTROLS ──────────────────────────────────────── */
+    .controls {
+      padding: 16px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      flex: 1;
+      min-width: 70px;
+      padding: 12px 10px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+
+    .btn:hover {
+      border-color: var(--green);
+      background: #1e2636;
+    }
+
+    .btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .btn.go {
+      background: linear-gradient(135deg, #50FFAA18, #50FFAA08);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .step-counter {
+      text-align: center;
+      padding: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* ─── TREE ──────────────────────────────────────────── */
+    .tree-wrap {
+      padding: 12px;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 520px;
+    }
+
+    .tree-svg {
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* Tree node styles */
+    .tnode {
+      cursor: default;
+      transition: opacity 0.3s;
+    }
+
+    .tnode rect {
+      rx: 10;
+      ry: 10;
+      stroke-width: 2;
+    }
+
+    .tnode text {
+      font-family: 'Inter', sans-serif;
+      fill: #e0e6f0;
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    .tnode .node-title {
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .tnode .node-sub {
+      font-size: 10px;
+      fill: #8899aa;
+      font-weight: 600;
+    }
+
+    .tnode .node-score {
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .tree-edge {
+      stroke: #2a3040;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .tree-edge.pruned {
+      stroke: var(--red);
+      stroke-dasharray: 6 4;
+      opacity: 0.5;
+    }
+
+    .tree-edge.active {
+      stroke: var(--green);
+      stroke-width: 3;
+    }
+
+    /* Highlight ring around active node */
+    .highlight-ring {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 3;
+      rx: 12;
+      ry: 12;
+      opacity: 0.7;
+      animation: ringPulse 1s ease-in-out infinite alternate;
+    }
+
+    @keyframes ringPulse {
+      from {
+        opacity: 0.4;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    /* pruned overlay */
+    .pruned-x {
+      font-size: 28px;
+      font-weight: 900;
+      fill: var(--red);
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    /* Responsive */
+    @media (max-width:800px) {
+      .layout {
+        flex-direction: column;
+      }
+
+      .left {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="header">
+    <h1>🧠 Backtracking + Alpha-Beta — Made Simple</h1>
+    <p>A tiny 3×3 board so you can see <em>exactly</em> what happens at every step</p>
+  </header>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--orange)"></div>
+      🔸 Suhas — Backtracking (doMove / undoMove)
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--cyan)"></div>
+      🔹 Maneesh — Alpha-Beta Pruning (skip useless branches)
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- LEFT -->
+    <div class="left">
+      <div class="card">
+        <div class="card-label">🟡 Board (3×3)</div>
+        <div class="board-wrap">
+          <div class="board" id="board"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">🎮 Controls</div>
+        <div class="controls">
+          <button class="btn go" id="btnGo" onclick="startVis()">▶ Start</button>
+          <button class="btn" id="btnReset" onclick="resetAll()">⟳ Reset</button>
+        </div>
+        <div class="controls" style="padding-top:0;">
+          <button class="btn" id="btnPrev" onclick="goPrev()" disabled>⏮ Back</button>
+          <button class="btn" id="btnPlay" onclick="togglePlay()" disabled>⏯ Play</button>
+          <button class="btn" id="btnNext" onclick="goNext()" disabled>Next ⏭</button>
+        </div>
+        <div class="step-counter" id="stepCounter">—</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">📊 Quick Stats</div>
+        <div style="padding:14px 16px; font-size:13px; line-height:2;">
+          <div>Player (🟡 Yellow) score: <strong id="statP">—</strong></div>
+          <div>CPU (🔵 Blue) score: <strong id="statC">—</strong></div>
+          <div>Nodes explored: <strong id="statN">0</strong></div>
+          <div>Branches pruned (✂️): <strong id="statPr" style="color:var(--red)">0</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right">
+      <div class="card">
+        <div class="card-label">💡 What's Happening Right Now</div>
+        <div class="explain-box">
+          <div class="explain-title" id="exTitle">👋 Press "Start" to begin!</div>
+          <div class="explain-body" id="exBody">
+            We'll use a <strong>tiny 3×3 board</strong> with only <strong>2 available moves</strong>
+            so the tree stays small and easy to follow.<br><br>
+            <strong>The two algorithms:</strong><br>
+            🔸 <strong>Suhas's Backtracking</strong> — flip tiles, explore, then <em>un-flip</em> them back (no copy
+            needed!).<br>
+            🔹 <strong>Maneesh's Alpha-Beta</strong> — skip branches that can't possibly beat what we already found.
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1;">
+        <div class="card-label">🌳 Recursion Tree</div>
+        <div class="tree-wrap" id="treeWrap">
+          <div style="padding:40px; text-align:center; color:var(--muted);">
+            Press "Start" and then use ⏮ ⏯ ⏭ to walk through the tree step by step.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ═════════════════════════════════════════════════════════════════════════
+    // SUPER SIMPLE 3×3 GAME ENGINE
+    // ═════════════════════════════════════════════════════════════════════════
+    const G = 3, T = 9;
+
+    // Neighbors (self + up/down/left/right)
+    const NEIGHBORS = [];
+    for (let i = 0; i < T; i++) {
+      const n = [i];
+      const r = Math.floor(i / G), c = i % G;
+      if (r > 0) n.push(i - G);
+      if (r < G - 1) n.push(i + G);
+      if (c > 0) n.push(i - 1);
+      if (c < G - 1) n.push(i + 1);
+      NEIGHBORS.push(n);
+    }
+
+    // Score = count your tiles − count opponent tiles (super simple!)
+    function score(board, forPlayer) {
+      let s = 0;
+      for (let i = 0; i < T; i++) s += board[i] === forPlayer ? 1 : -1;
+      return s;
+    }
+
+    // ═══ SUHAS: doMove (flip in place) ═══
+    function doMove(board, move) {
+      for (const nb of NEIGHBORS[move]) board[nb] = !board[nb];
+    }
+    // ═══ SUHAS: undoMove (flip again = undo, because XOR is its own inverse!) ═══
+    function undoMove(board, move) {
+      doMove(board, move); // same operation reverses itself!
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // RECORDED ALPHA-BETA — saves every step for the visualizer
+    // ═════════════════════════════════════════════════════════════════════════
+    let steps = [];
+    let treeData = []; // { id, parentId, move, depth, alpha, beta, isMax, score, pruned, label }
+    let nid = 0;
+    let totalNodes = 0, totalPrunes = 0;
+
+    // Available moves — we restrict to just [1, 4] (top-center and center) to keep tree tiny
+    const AVAILABLE = [1, 4, 7];
+    const MAX_DEPTH = 2;
+
+    function recAB(board, depth, alpha, beta, isMax, parentId) {
+      totalNodes++;
+      const id = nid++;
+      const snap = [...board];
+
+      const label = depth === 0 ? 'Leaf'
+        : isMax ? `MAX d${MAX_DEPTH - depth}` : `MIN d${MAX_DEPTH - depth}`;
+
+      treeData.push({
+        id, parentId, move: null, depth: MAX_DEPTH - depth,
+        alpha, beta, isMax, score: null, pruned: false, label, snap
+      });
+
+      steps.push({ type: 'enter', id, depth: MAX_DEPTH - depth, alpha, beta, isMax, board: snap });
+
+      // Base case: leaf
+      if (depth === 0) {
+        const s = score(board, true); // score from Player's POV
+        treeData[treeData.length - 1].score = s;
+        steps.push({ type: 'leaf', id, score: s, board: snap, isMax, depth: MAX_DEPTH - depth });
+        return s;
+      }
+
+      let best = isMax ? -Infinity : Infinity;
+
+      for (let idx = 0; idx < AVAILABLE.length; idx++) {
+        const move = AVAILABLE[idx];
+
+        // ═══ SUHAS: doMove ═══
+        steps.push({ type: 'doMove', id, move, board: [...board], depth: MAX_DEPTH - depth, alpha, beta, isMax });
+        doMove(board, move);
+        steps.push({ type: 'afterDoMove', id, move, board: [...board], depth: MAX_DEPTH - depth, alpha, beta, isMax });
+
+        // RECURSE
+        const childId = nid; // will be assigned inside
+        const val = recAB(board, depth - 1, alpha, beta, !isMax, id);
+
+        // ═══ SUHAS: undoMove ═══
+        undoMove(board, move);
+        steps.push({ type: 'undoMove', id, move, board: [...board], val, depth: MAX_DEPTH - depth, alpha, beta, isMax });
+
+        // Set move on child node
+        const childNode = treeData.find(n => n.id === childId);
+        if (childNode) childNode.move = move;
+
+        // ═══ MANEESH: update alpha / beta ═══
+        if (isMax) {
+          best = Math.max(best, val);
+          alpha = Math.max(alpha, best);
+        } else {
+          best = Math.min(best, val);
+          beta = Math.min(beta, best);
+        }
+
+        steps.push({ type: 'updateAB', id, move, val, best, alpha, beta, isMax, depth: MAX_DEPTH - depth, board: [...board] });
+
+        // ═══ MANEESH: PRUNE? ═══
+        if (beta <= alpha) {
+          totalPrunes++;
+          const remaining = AVAILABLE.slice(idx + 1);
+          for (const rm of remaining) {
+            const pid = nid++;
+            treeData.push({
+              id: pid, parentId: id, move: rm, depth: MAX_DEPTH - depth + 1,
+              alpha, beta, isMax: !isMax, score: null, pruned: true, label: '✂️', snap: [...board]
+            });
+          }
+          steps.push({ type: 'prune', id, prunedMoves: remaining, alpha, beta, isMax, depth: MAX_DEPTH - depth, board: [...board], best });
+          break;
+        }
+      }
+
+      treeData.find(n => n.id === id).score = best;
+      steps.push({ type: 'return', id, score: best, depth: MAX_DEPTH - depth, alpha, beta, isMax, board: [...board] });
+      return best;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // UI
+    // ═════════════════════════════════════════════════════════════════════════
+    let board = [];
+    let curStep = -1;
+    let playing = false, timer = null;
+
+    function initBoard() {
+      // Simple start: Player owns corners + center, CPU owns the rest
+      board = [
+        true, false, true,
+        false, true, false,
+        true, false, true
+      ];
+    }
+
+    function renderBoard(b) {
+      const el = document.getElementById('board');
+      el.innerHTML = '';
+      let pScore = 0, cScore = 0;
+      for (let i = 0; i < T; i++) {
+        const cell = document.createElement('div');
+        cell.className = `cell ${b[i] ? 'player' : 'cpu'}`;
+        cell.id = `c${i}`;
+        cell.innerHTML = `<span>${b[i] ? '🟡' : '🔵'}</span><span class="cell-label">${i}</span>`;
+        el.appendChild(cell);
+        if (b[i]) pScore++; else cScore++;
+      }
+      document.getElementById('statP').textContent = pScore;
+      document.getElementById('statC').textContent = cScore;
+    }
+
+    function resetAll() {
+      stopPlay();
+      curStep = -1;
+      steps = []; treeData = []; nid = 0;
+      totalNodes = 0; totalPrunes = 0;
+      initBoard();
+      renderBoard(board);
+      document.getElementById('treeWrap').innerHTML =
+        '<div style="padding:40px;text-align:center;color:var(--muted)">Press "Start" to begin.</div>';
+      document.getElementById('exTitle').textContent = '👋 Press "Start" to begin!';
+      document.getElementById('exBody').innerHTML = `
+    <strong>The two algorithms:</strong><br>
+    🔸 <strong>Suhas's Backtracking</strong> — flip tiles, explore, then <em>un-flip</em> them back.<br>
+    🔹 <strong>Maneesh's Alpha-Beta</strong> — skip branches that can't beat what we already found.
+  `;
+      document.getElementById('stepCounter').textContent = '—';
+      document.getElementById('statN').textContent = '0';
+      document.getElementById('statPr').textContent = '0';
+      document.getElementById('btnGo').disabled = false;
+      document.getElementById('btnPrev').disabled = true;
+      document.getElementById('btnPlay').disabled = true;
+      document.getElementById('btnNext').disabled = true;
+    }
+
+    function startVis() {
+      document.getElementById('btnGo').disabled = true;
+      steps = []; treeData = []; nid = 0;
+      totalNodes = 0; totalPrunes = 0;
+
+      const b = [...board];
+
+      // Root
+      const rootId = nid++;
+      treeData.push({
+        id: rootId, parentId: -1, move: null, depth: 0,
+        alpha: -Infinity, beta: Infinity, isMax: false, score: null,
+        pruned: false, label: 'CPU picks', snap: [...b]
+      });
+
+      steps.push({ type: 'rootStart', id: rootId, board: [...b] });
+
+      let bestMove = AVAILABLE[0], bestVal = Infinity;
+      let alpha = -Infinity, beta = Infinity;
+
+      for (const move of AVAILABLE) {
+        steps.push({ type: 'doMove', id: rootId, move, board: [...b], depth: 0, alpha, beta, isMax: false });
+        doMove(b, move);
+        steps.push({ type: 'afterDoMove', id: rootId, move, board: [...b], depth: 0, alpha, beta, isMax: false });
+
+        const childId = nid;
+        const val = recAB(b, MAX_DEPTH - 1, alpha, beta, true, rootId);
+
+        undoMove(b, move);
+        steps.push({ type: 'undoMove', id: rootId, move, board: [...b], val, depth: 0, alpha, beta, isMax: false });
+
+        const childNode = treeData.find(n => n.id === childId);
+        if (childNode) childNode.move = move;
+
+        if (val < bestVal) { bestVal = val; bestMove = move; }
+        beta = Math.min(beta, bestVal);
+        steps.push({ type: 'updateAB', id: rootId, move, val, best: bestVal, alpha, beta, isMax: false, depth: 0, board: [...b] });
+
+        if (beta <= alpha) {
+          totalPrunes++;
+          steps.push({ type: 'prune', id: rootId, prunedMoves: [], alpha, beta, isMax: false, depth: 0, board: [...b], best: bestVal });
+          break;
+        }
+      }
+
+      treeData[0].score = bestVal;
+      steps.push({ type: 'done', bestMove, bestVal, board: [...b] });
+
+      curStep = -1;
+      document.getElementById('btnPrev').disabled = false;
+      document.getElementById('btnPlay').disabled = false;
+      document.getElementById('btnNext').disabled = false;
+
+      drawFullTree(-1);
+
+      document.getElementById('exTitle').textContent = `✅ Search recorded — ${steps.length} steps`;
+      document.getElementById('exBody').innerHTML = `
+    Best move for CPU: <strong>Tile ${bestMove}</strong> (score ${bestVal})<br>
+    <strong>${totalNodes}</strong> nodes explored, <strong>${totalPrunes}</strong> branches pruned ✂️<br><br>
+    Now press <strong>Next ⏭</strong> to walk through step-by-step!
+  `;
+      document.getElementById('statN').textContent = totalNodes;
+      document.getElementById('statPr').textContent = totalPrunes;
+    }
+
+    // ── Step controls ──
+    function goNext() {
+      if (curStep < steps.length - 1) { curStep++; showStep(curStep); }
+    }
+    function goPrev() {
+      if (curStep > 0) { curStep--; showStep(curStep); }
+    }
+    function togglePlay() {
+      if (playing) { stopPlay(); return; }
+      playing = true;
+      document.getElementById('btnPlay').textContent = '⏸ Pause';
+      tick();
+    }
+    function stopPlay() {
+      playing = false;
+      document.getElementById('btnPlay').textContent = '⏯ Play';
+      if (timer) { clearTimeout(timer); timer = null; }
+    }
+    function tick() {
+      if (!playing) return;
+      if (curStep >= steps.length - 1) { stopPlay(); return; }
+      goNext();
+      timer = setTimeout(tick, 900);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // SHOW A STEP
+    // ═════════════════════════════════════════════════════════════════════════
+    function showStep(idx) {
+      const s = steps[idx];
+      if (!s) return;
+      document.getElementById('stepCounter').textContent = `Step ${idx + 1} / ${steps.length}`;
+
+      // Board
+      if (s.board) renderBoard(s.board);
+      // Clear glows
+      document.querySelectorAll('.cell').forEach(c => c.classList.remove('glow-orange', 'glow-red'));
+
+      // Highlight tiles
+      if (s.type === 'doMove' || s.type === 'afterDoMove') {
+        for (const nb of NEIGHBORS[s.move]) {
+          const c = document.getElementById(`c${nb}`);
+          if (c) c.classList.add('glow-orange');
+        }
+      }
+      if (s.type === 'undoMove') {
+        for (const nb of NEIGHBORS[s.move]) {
+          const c = document.getElementById(`c${nb}`);
+          if (c) c.classList.add('glow-red');
+        }
+      }
+
+      // Tree
+      drawFullTree(s.id);
+
+      // Explanation
+      explain(s, idx);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // EXPLAIN each step — plain English, big and clear
+    // ═════════════════════════════════════════════════════════════════════════
+    function fmt(n) { return n === Infinity ? '+∞' : n === -Infinity ? '−∞' : String(n); }
+
+    function explain(s, idx) {
+      const title = document.getElementById('exTitle');
+      const body = document.getElementById('exBody');
+
+      switch (s.type) {
+        case 'rootStart':
+          title.textContent = `Step ${idx + 1}: CPU's Turn — Start Searching`;
+          body.innerHTML = `The CPU wants to find the best tile to flip.<br>
+        It will try each available move <strong>[Tile 1, 4, 7]</strong> one by one,<br>
+        and use the <strong>recursion tree</strong> to look ahead.`;
+          break;
+
+        case 'enter':
+          title.textContent = `Step ${idx + 1}: Go Deeper (Depth ${s.depth})`;
+          body.innerHTML = `<span class="tag tag-maneesh">MANEESH</span>
+        We enter a new level of the recursion tree.<br>
+        ${s.isMax
+              ? '🔺 <strong>Maximizing</strong> — Player wants the <strong>highest</strong> score.'
+              : '🔻 <strong>Minimizing</strong> — CPU wants the <strong>lowest</strong> score.'}
+        <br>Alpha (α) = <strong>${fmt(s.alpha)}</strong>, Beta (β) = <strong>${fmt(s.beta)}</strong>`;
+          break;
+
+        case 'doMove':
+          title.innerHTML = `Step ${idx + 1}: 🔸 doMove(Tile ${s.move})`;
+          body.innerHTML = `<span class="tag tag-suhas">SUHAS</span>
+        <strong>Flip tile ${s.move}</strong> and its neighbors <strong>${JSON.stringify(NEIGHBORS[s.move])}</strong>.<br><br>
+        ⚡ This is done <strong>in-place</strong> — the board is modified directly, no copy!<br>
+        Later we will call <strong>undoMove</strong> to reverse this exact change.`;
+          break;
+
+        case 'afterDoMove':
+          title.innerHTML = `Step ${idx + 1}: Board After Flipping Tile ${s.move}`;
+          body.innerHTML = `<span class="tag tag-suhas">SUHAS</span>
+        Look at the board — all highlighted tiles just <strong>flipped color</strong>! 🟡↔🔵<br><br>
+        Now we go <strong>one level deeper</strong> in the recursion tree to evaluate this move.`;
+          break;
+
+        case 'leaf':
+          title.textContent = `Step ${idx + 1}: 🍃 Leaf — Count the Score`;
+          body.innerHTML = `We've reached the bottom of the tree. Time to count!<br><br>
+        <strong>Score = Player tiles − CPU tiles = ${s.score}</strong><br>
+        ${s.score > 0 ? '👍 Positive = good for Player' : s.score < 0 ? '👎 Negative = good for CPU' : '🤝 Tied!'}<br><br>
+        This score <strong>bubbles up</strong> to the parent node.`;
+          break;
+
+        case 'undoMove':
+          title.innerHTML = `Step ${idx + 1}: 🔴 undoMove(Tile ${s.move})`;
+          body.innerHTML = `<span class="tag tag-suhas">SUHAS</span>
+        <strong>Undo the flip!</strong> We call doMove <em>again</em> on tile ${s.move}.<br><br>
+        🔑 <strong>Key insight:</strong> Flipping a tile twice = original state.<br>
+        <code>XOR → XOR = back to normal</code><br><br>
+        The child returned score = <strong>${s.val}</strong>. Board is now <strong>exactly restored</strong>.`;
+          break;
+
+        case 'updateAB':
+          title.textContent = `Step ${idx + 1}: Update α-β Bounds`;
+          body.innerHTML = `<span class="tag tag-maneesh">MANEESH</span>
+        Tile ${s.move} returned score <strong>${s.val}</strong>. Best so far: <strong>${s.best}</strong>.<br><br>
+        ${s.isMax
+              ? `🔺 Maximizer updates: <strong>α = max(α, ${s.best}) = ${fmt(s.alpha)}</strong>`
+              : `🔻 Minimizer updates: <strong>β = min(β, ${s.best}) = ${fmt(s.beta)}</strong>`}
+        <br><br>
+        ${s.beta <= s.alpha
+              ? `<span class="tag tag-prune">⚠️</span> β (${fmt(s.beta)}) ≤ α (${fmt(s.alpha)}) → <strong>PRUNE incoming!</strong>`
+              : `β (${fmt(s.beta)}) > α (${fmt(s.alpha)}) → no prune yet, keep exploring.`}`;
+          break;
+
+        case 'prune':
+          title.textContent = `Step ${idx + 1}: ✂️ PRUNED!`;
+          body.innerHTML = `<span class="tag tag-prune">PRUNE</span> <span class="tag tag-maneesh">MANEESH</span><br><br>
+        <strong>β (${fmt(s.beta)}) ≤ α (${fmt(s.alpha)})</strong> — so we CUT this branch! ✂️<br><br>
+        <strong>Why?</strong> The parent already has a better option available.<br>
+        No matter what score the remaining moves return,<br>
+        the parent will <strong>never pick this branch</strong>. So we skip it entirely!<br><br>
+        💡 This is what makes Alpha-Beta faster than plain Minimax.`;
+          break;
+
+        case 'return':
+          title.textContent = `Step ${idx + 1}: Return Score ${s.score} ↑`;
+          body.innerHTML = `This node is done exploring. Final score: <strong>${s.score}</strong>.<br>
+        It returns this value to its parent node above.<br><br>
+        ${s.isMax
+              ? `🔺 The maximizer picked the <strong>highest</strong> child score.`
+              : `🔻 The minimizer picked the <strong>lowest</strong> child score.`}`;
+          break;
+
+        case 'done':
+          title.textContent = `✅ Search Complete!`;
+          body.innerHTML = `CPU's best move: <strong>Tile ${s.bestMove}</strong> (score: ${s.bestVal})<br><br>
+        📊 <strong>${totalNodes}</strong> nodes explored<br>
+        ✂️ <strong>${totalPrunes}</strong> branches pruned (saved work!)<br><br>
+        <em>Without pruning, we'd need to explore every single branch.</em><br>
+        <em>With pruning, we skip the ones that can't possibly change the answer!</em>`;
+          break;
+      }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // TREE DRAWING — SVG for clarity
+    // ═════════════════════════════════════════════════════════════════════════
+    const NODE_W = 110, NODE_H = 54, LEVEL_GAP = 80, H_GAP = 16;
+
+    function drawFullTree(highlightId) {
+      if (treeData.length === 0) return;
+
+      const maxD = Math.max(...treeData.map(n => n.depth));
+
+      // Group by depth
+      const levels = {};
+      for (const n of treeData) {
+        if (!levels[n.depth]) levels[n.depth] = [];
+        levels[n.depth].push(n);
+      }
+
+      // Position nodes
+      const pos = {};
+      let maxX = 0;
+      for (let d = 0; d <= maxD; d++) {
+        const nodes = levels[d] || [];
+        const totalW = nodes.length * NODE_W + (nodes.length - 1) * H_GAP;
+        let startX = 20;
+        if (totalW + 40 > maxX) maxX = totalW + 40;
+        nodes.forEach((n, i) => {
+          pos[n.id] = {
+            x: startX + i * (NODE_W + H_GAP),
+            y: 20 + d * LEVEL_GAP
+          };
+        });
+      }
+
+      // Center narrower levels
+      for (let d = 0; d <= maxD; d++) {
+        const nodes = levels[d] || [];
+        const totalW = nodes.length * NODE_W + (nodes.length - 1) * H_GAP;
+        const offset = (maxX - totalW) / 2;
+        nodes.forEach(n => { pos[n.id].x += offset; });
+      }
+
+      const svgW = maxX + 40;
+      const svgH = (maxD + 1) * LEVEL_GAP + 60;
+
+      let svg = `<svg class="tree-svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">`;
+
+      // Edges
+      for (const n of treeData) {
+        if (n.parentId < 0) continue;
+        const from = pos[n.parentId];
+        const to = pos[n.id];
+        if (!from || !to) continue;
+        const cls = n.pruned ? 'tree-edge pruned' : (n.id === highlightId ? 'tree-edge active' : 'tree-edge');
+        const fx = from.x + NODE_W / 2, fy = from.y + NODE_H;
+        const tx = to.x + NODE_W / 2, ty = to.y;
+        // Curved edge
+        const my = (fy + ty) / 2;
+        svg += `<path class="${cls}" d="M${fx},${fy} C${fx},${my} ${tx},${my} ${tx},${ty}" />`;
+        // Move label on edge
+        if (n.move !== null) {
+          const mx2 = (fx + tx) / 2, my2 = (fy + ty) / 2 - 8;
+          svg += `<text x="${mx2}" y="${my2}" text-anchor="middle" fill="#6b7a90" font-size="10" font-family="Inter" font-weight="700">Tile ${n.move}</text>`;
+        }
+      }
+
+      // Nodes
+      for (const n of treeData) {
+        const p = pos[n.id];
+        if (!p) continue;
+        const isActive = n.id === highlightId;
+
+        let fill, stroke;
+        if (n.pruned) { fill = '#FF555515'; stroke = '#FF555566'; }
+        else if (isActive) { fill = '#50FFAA20'; stroke = '#50FFAACC'; }
+        else if (n.isMax) { fill = '#F4C43012'; stroke = '#F4C43066'; }
+        else { fill = '#2E86C112'; stroke = '#2E86C166'; }
+
+        svg += `<g class="tnode">`;
+
+        // Highlight ring
+        if (isActive) {
+          svg += `<rect class="highlight-ring" x="${p.x - 4}" y="${p.y - 4}" width="${NODE_W + 8}" height="${NODE_H + 8}" />`;
+        }
+
+        svg += `<rect x="${p.x}" y="${p.y}" width="${NODE_W}" height="${NODE_H}" fill="${fill}" stroke="${stroke}" />`;
+
+        if (n.pruned) {
+          svg += `<text class="pruned-x" x="${p.x + NODE_W / 2}" y="${p.y + NODE_H / 2}">✂️</text>`;
+        } else {
+          // Label
+          const icon = n.isMax ? '🔺' : '🔻';
+          svg += `<text class="node-title" x="${p.x + NODE_W / 2}" y="${p.y + 16}">${icon} ${n.label}</text>`;
+          // Score
+          if (n.score !== null) {
+            const scoreColor = n.score > 0 ? '#50FFAA' : n.score < 0 ? '#FF5555' : '#aab';
+            svg += `<text class="node-score" x="${p.x + NODE_W / 2}" y="${p.y + 38}" fill="${scoreColor}">score: ${n.score}</text>`;
+          } else {
+            svg += `<text class="node-sub" x="${p.x + NODE_W / 2}" y="${p.y + 38}">…</text>`;
+          }
+        }
+
+        svg += `</g>`;
+      }
+
+      svg += `</svg>`;
+      document.getElementById('treeWrap').innerHTML = svg;
+    }
+
+    // ═══ INIT ═══
+    window.addEventListener('load', () => {
+      initBoard();
+      renderBoard(board);
+    });
+  </script>
+</body>
+
+</html>
