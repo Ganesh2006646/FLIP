@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flip Wars — Team 13</title>
+  <meta name="description" content="Flip Wars: A Strategic Duel of Algorithms. Play against AI powered by Greedy, Divide & Conquer, and Alpha-Beta Pruning with DP.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- MENU SCREEN                                                     -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div id="menuScreen" class="screen active">
+    <canvas id="particleCanvas"></canvas>
+    <div class="menu-content">
+      <h1 id="menuTitle" class="menu-title">FLIP WARS</h1>
+      <p class="menu-subtitle">A Strategic Duel of Algorithms</p>
+
+      <div class="selectors">
+        <div class="selector-group">
+          <label class="selector-label">GRID SIZE</label>
+          <select id="gridSelect" class="styled-select">
+            <option value="4">4 × 4</option>
+            <option value="5">5 × 5</option>
+            <option value="6" selected>6 × 6</option>
+          </select>
+        </div>
+        <div class="selector-group">
+          <label class="selector-label">ALGORITHM</label>
+          <select id="versionSelect" class="styled-select">
+            <option value="1">R1: Greedy</option>
+            <option value="2">R2: Divide & Conquer</option>
+            <option value="3" selected>R3: DP + Backtracking</option>
+          </select>
+        </div>
+        <div class="selector-group">
+          <label class="selector-label">FIRST MOVE</label>
+          <select id="turnSelect" class="styled-select">
+            <option value="player" selected>Player First</option>
+            <option value="cpu">CPU First</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="btnPlay" class="menu-btn play-btn" onclick="startGame()">▶  PLAY GAME</button>
+      <button class="menu-btn rules-btn" onclick="showRules()">📖  RULES</button>
+      <button class="menu-btn exit-btn" onclick="window.close()">✕  EXIT</button>
+
+      <p class="team-label">Design & Analysis of Algorithms  ·  Team-13</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- GAME SCREEN                                                     -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div id="gameScreen" class="screen">
+    <!-- HUD -->
+    <div id="hud" class="hud">
+      <div class="hud-score player-score" id="playerScoreBox">
+        <span class="hud-label">PLAYER</span>
+        <span class="hud-value" id="playerScore">0</span>
+      </div>
+      <div class="hud-center">
+        <div class="hud-turn-group">
+          <span class="hud-mini-label">TURN</span>
+          <span class="hud-mini-value" id="turnCounter">0/18</span>
+        </div>
+        <div class="hud-status" id="statusLabel">YOUR TURN</div>
+        <div class="hud-turn-group">
+          <span class="hud-mini-label">AI</span>
+          <span class="hud-mini-value" id="aiMode">R3</span>
+        </div>
+      </div>
+      <div class="hud-score cpu-score" id="cpuScoreBox">
+        <span class="hud-label">CPU</span>
+        <span class="hud-value" id="cpuScore">0</span>
+      </div>
+    </div>
+
+    <!-- Main content: Board + Scanner -->
+    <div class="game-layout">
+      <div class="game-left">
+        <div id="boardContainer" class="board-container"></div>
+        <!-- Controls -->
+        <div class="controls">
+          <button class="ctrl-btn accent" onclick="restartGame()">⟳ Restart</button>
+          <button class="ctrl-btn yellow" onclick="doHint()">💡 Hint</button>
+          <button class="ctrl-btn purple" id="solveBtn" onclick="toggleSolve()">▶ Solve</button>
+          <button class="ctrl-btn neutral" onclick="goMenu()">☰ Menu</button>
+        </div>
+      </div>
+
+      <!-- Brain Scanner -->
+      <div class="scanner" id="scanner">
+        <div class="scanner-header">
+          <div class="scanner-stats">
+            <span class="stat" id="statNodes" title="Nodes Evaluated">N: 0</span>
+            <span class="stat-sep">|</span>
+            <span class="stat" id="statPrunes" title="Branches Pruned">P: 0</span>
+            <span class="stat-sep">|</span>
+            <span class="stat" id="statDP" title="Transposition Table Hits">DP: 0</span>
+            <span class="stat-sep">|</span>
+            <span class="stat" id="statTT" title="Transposition Table Size">TT: 0</span>
+            <span class="stat-sep">|</span>
+            <span class="stat" id="statTime">Time: 0ms</span>
+          </div>
+          <div class="scanner-status" id="scannerStatus">▶ Awaiting first CPU move...</div>
+        </div>
+        <div class="scanner-body">
+          <div class="scanner-panel">
+            <div class="panel-title">📋  CANDIDATES</div>
+            <div class="candidates-scroll" id="candidatesTable"></div>
+          </div>
+          <div class="scanner-panel">
+            <div class="panel-title">🌳  SEARCH TREE</div>
+            <div class="tree-scroll" id="searchTree"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- RULES MODAL                                                     -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div id="rulesModal" class="modal-overlay" onclick="if(event.target===this)closeRules()">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeRules()">✕</button>
+      <pre class="rules-text">
+══════════════════════════════════════
+         FLIP WARS — HOW TO PLAY
+══════════════════════════════════════
+
+OBJECTIVE
+  Turn ALL tiles your color, OR hold the
+  highest Strategic Score at the turn limit.
+
+FLIP LOGIC
+  Click a tile → flips it + all 4 orthogonal
+  neighbors (up, down, left, right) in a + pattern.
+
+LOCK MECHANIC  (Tabu Search)
+  After clicking, a tile is locked for several
+  turns (shows WAIT countdown). Prevents infinite
+  loops and adds strategic depth.
+
+BLACK HOLES
+  Void tiles: permanently unflippable. They warp the
+  graph topology — adjacent tiles lose one neighbor.
+
+SCORING
+  Corners  +25  ← most valuable!
+  Edges    +15
+  Standard  +5
+  Trap      -5  ← avoid near corners
+
+══════════════════════════════════════
+              AI VERSIONS
+══════════════════════════════════════
+
+R1 — GREEDY  (Easy)
+  Simple tile-value counting + 15% random blunder.
+
+R2 — DIVIDE & CONQUER  (Medium)
+  · Merge Sort       move ranking
+  · Spatial D&C      quadrant control
+  · DFS Clusters     territory strength
+  · Tournament Select CPU move selection
+  · Threat Detection exposure analysis
+
+R3 — DP + BACKTRACKING  (Expert)
+  · SUHAS   doMove/undoMove backtracking (O(1) space)
+  · MANEESH Alpha-Beta Pruning Minimax
+  · GANESH  Zobrist Transposition Table
+  · BALAJI  Bitmask DP Oracle (4x4: 65536 states)
+
+══════════════════════════════════════
+         WINNING STRATEGIES
+══════════════════════════════════════
+
+  * Secure corners early — worth 25 pts each!
+  * Build large connected clusters for territory
+  * Avoid trap tiles near corners (-5)
+  * Plan around locked tiles for surprise moves
+  * Watch the Brain Scanner for AI reasoning!
+
+      Design & Analysis of Algorithms
+               Team-13
+      </pre>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- GAME OVER MODAL                                                 -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div id="gameOverModal" class="modal-overlay">
+    <div class="modal-content game-over-content">
+      <div class="game-over-title" id="gameOverTitle"></div>
+      <div class="game-over-buttons">
+        <button class="go-btn play-again" onclick="restartGame(); closeGameOver();">Play Again</button>
+        <button class="go-btn go-menu" onclick="goMenu(); closeGameOver();">Go to Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
